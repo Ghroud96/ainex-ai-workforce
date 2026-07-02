@@ -1,3 +1,7 @@
+# n8n local data
+data/
+postgres/
+qdrant/
 # Logs
 logs
 *.log
