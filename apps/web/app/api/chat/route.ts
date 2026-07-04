@@ -1,45 +1,41 @@
 import { NextResponse } from "next/server";
+import { ProviderRegistry } from "@/lib/llm/ProviderRegistry";
+import { appendSourceFooter, buildBasicRagContext, buildSystemMessage } from "@/lib/rag/BasicRagAdapter";
 
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: message,
-      }),
-    });
-
-    const data = await response.json();
-
-    console.log("OPENAI RESPONSE:", JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { reply: data.error?.message || "OpenAI API error." },
-        { status: 200 }
-      );
+    if (typeof message !== "string" || message.trim().length === 0) {
+      return NextResponse.json({ reply: "Please enter a message." });
     }
 
-    const text =
-      data.output_text ||
-      data.output?.[0]?.content?.[0]?.text ||
-      data.output?.[1]?.content?.[0]?.text ||
-      "No response generated.";
+    const provider = ProviderRegistry.getActive();
+    if (!provider) {
+      return NextResponse.json({ reply: "No AI provider is currently available." });
+    }
 
-    return NextResponse.json({ reply: text });
+    const ragContext = buildBasicRagContext(message);
+    const systemMessage = buildSystemMessage(ragContext);
+
+    const response = await provider.chat({
+      model: provider.listModels()[0]?.id ?? "unknown",
+      messages: [systemMessage, { role: "user", content: message }],
+    });
+
+    // Provider-level failures (missing key, quota, timeout, unavailable)
+    // already carry a friendly message in `content` — don't append a
+    // "Sources" footer to an error.
+    const reply =
+      response.finishReason === "error" ? response.content : appendSourceFooter(response.content, ragContext);
+
+    return NextResponse.json({ reply });
   } catch (error) {
     console.error("CHAT API ERROR:", error);
 
     return NextResponse.json(
       { reply: "AI request failed. Please check server logs." },
-      { status: 200 }
+      { status: 200 },
     );
   }
 }
