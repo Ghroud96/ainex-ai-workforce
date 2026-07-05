@@ -3,7 +3,7 @@ import KnowledgeStatCard from "@/components/KnowledgeStatCard";
 import ModuleCard from "@/components/ModuleCard";
 import PageHeader from "@/components/PageHeader";
 import SectionTitle from "@/components/SectionTitle";
-import { documents, formatFileSize, type DigitalDocument } from "@/data/documents";
+import { getAllDocuments, formatFileSize, type DigitalDocument } from "@/data/documents";
 import { getKnowledgePipelineSummary } from "@/lib/services/knowledge/knowledgeHubBridge";
 
 const roadmapItems = [
@@ -47,6 +47,7 @@ function activityLabel(document: DigitalDocument): string {
 }
 
 export default async function KnowledgePage() {
+  const documents = getAllDocuments();
   const totalDocuments = documents.length;
   const departmentCount = new Set(documents.map((document) => document.department)).size;
   const totalSizeKb = documents.reduce((sum, document) => sum + document.sizeKb, 0);

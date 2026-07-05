@@ -1,4 +1,4 @@
-import { workers as legacyWorkers, type DigitalWorker, type WorkerCapability as LegacyCapability } from "@/data/workers";
+import { getAllWorkers, type DigitalWorker, type WorkerCapability as LegacyCapability } from "@/data/workers";
 import { WorkerInstance } from "@/lib/workforce/Worker";
 import { getCapability, type CapabilityKey } from "@/lib/workforce/WorkerCapability";
 import { buildPromptTemplate } from "@/lib/workforce/WorkerPrompt";
@@ -49,6 +49,11 @@ export function createWorkerFromLegacy(legacy: DigitalWorker): WorkerInstance {
   return new WorkerInstance(definition);
 }
 
+// Calls getAllWorkers() fresh each time (not a module-load-time array)
+// so a company profile switch (lib/enterprise/CompanyProfileStore.ts,
+// which calls WorkerRegistry.replaceAll(buildWorkforceRoster())) picks up
+// the newly-generated worker content instead of whatever existed at
+// first import.
 export function buildWorkforceRoster(): WorkerInstance[] {
-  return legacyWorkers.map(createWorkerFromLegacy);
+  return getAllWorkers().map(createWorkerFromLegacy);
 }

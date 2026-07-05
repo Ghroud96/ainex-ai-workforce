@@ -3,6 +3,8 @@ import type { RetrievalContext, SearchResult } from "@/lib/knowledge/types";
 export interface RetrievalFilter {
   department?: string;
   category?: string;
+  documentId?: string;
+  workerId?: string;
 }
 
 export interface Retriever {

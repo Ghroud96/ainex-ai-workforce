@@ -1,9 +1,13 @@
 import Link from "next/link";
 import DocumentStatus from "@/components/DocumentStatus";
+import PriorityBadge from "@/components/PriorityBadge";
 import TagBadge from "@/components/TagBadge";
 import { formatFileSize, type DigitalDocument } from "@/data/documents";
+import { enrichDocument } from "@/lib/enterprise/BusinessInsights";
 
 export default function DocumentCard({ document }: { document: DigitalDocument }) {
+  const { usageCount, businessImportance } = enrichDocument(document);
+
   return (
     <div className="flex flex-col rounded-xl bg-slate-900 p-6">
       <div className="flex items-start justify-between gap-3">
@@ -14,6 +18,13 @@ export default function DocumentCard({ document }: { document: DigitalDocument }
           </p>
         </div>
         <DocumentStatus status={document.status} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <PriorityBadge priority={businessImportance} />
+        <span className="text-xs text-slate-500">
+          Used {usageCount} time{usageCount === 1 ? "" : "s"} across the Digital Workforce
+        </span>
       </div>
 
       <p className="mt-4 flex-1 text-sm text-slate-300">{document.description}</p>

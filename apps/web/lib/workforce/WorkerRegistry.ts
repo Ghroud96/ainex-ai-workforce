@@ -18,6 +18,16 @@ class WorkerRegistryImpl {
     }
   }
 
+  // Swaps the entire roster in one call — used when the active company
+  // profile changes (lib/enterprise/CompanyProfileStore.ts) so every
+  // consumer of this registry (WorkforceService, WorkerRuntime) picks up
+  // freshly-flavored worker definitions instead of the ones baked in at
+  // module load.
+  replaceAll(workers: WorkerInstance[]): void {
+    this.workers.clear();
+    this.registerAll(workers);
+  }
+
   unregister(id: string): void {
     this.workers.delete(id);
   }

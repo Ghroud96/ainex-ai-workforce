@@ -11,7 +11,8 @@ export function createRetriever(
     return results.filter((result) => {
       const matchesDepartment = !criteria.department || result.metadata.department === criteria.department;
       const matchesCategory = !criteria.category || result.metadata.category === criteria.category;
-      return matchesDepartment && matchesCategory;
+      const matchesDocumentId = !criteria.documentId || result.documentId === criteria.documentId;
+      return matchesDepartment && matchesCategory && matchesDocumentId;
     });
   }
 
@@ -21,7 +22,19 @@ export function createRetriever(
 
   async function search(query: string, criteria: RetrievalFilter = {}): Promise<SearchResult[]> {
     const queryVector = await activeEmbeddingProvider.embed(query);
-    const matches = await activeVectorStore.query(queryVector, 10);
+    // Filtering happens twice: once inside the vector store (Phase C5 —
+    // real stores like Qdrant filter server-side before scoring, which is
+    // both faster and what "filter by X" means for a real vector
+    // database), and again below on the mapped SearchResult[] as a
+    // store-independent safety net (workerId isn't a SearchResult field
+    // today, so it's vector-store-only; department/category/documentId
+    // are checked both places).
+    const matches = await activeVectorStore.query(queryVector, 10, {
+      department: criteria.department,
+      category: criteria.category,
+      documentId: criteria.documentId,
+      workerId: criteria.workerId,
+    });
 
     const results = matches
       .map((match): SearchResult | undefined => {

@@ -2,9 +2,16 @@ import type { Document, SourceFileType } from "@/lib/knowledge/types";
 import type { DocumentParser, ParsedDocument } from "@/lib/parser/types";
 
 function mockParse(document: Document, note: string): ParsedDocument {
+  // Real file parsing (Phase 2) will extract this from the uploaded
+  // file's bytes. Until then, use the document's real text if the
+  // caller supplied one (e.g. a Knowledge Hub mock document's
+  // description) instead of a placeholder that carries no actual
+  // content for chunking/embedding to work with.
+  const text = document.content ?? `[${note}] ${document.metadata.title} — parsed content placeholder.`;
+
   return {
     documentId: document.id,
-    text: `[${note}] ${document.metadata.title} — parsed content placeholder.`,
+    text,
     pageCount: 1,
   };
 }

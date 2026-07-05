@@ -21,6 +21,11 @@ export interface Document {
   fileType: SourceFileType;
   sizeKb: number;
   metadata: DocumentMetadata;
+  // Raw source text, when the caller already has it (e.g. a mock
+  // document's description). Optional because real file parsing
+  // (Phase 2) will extract this from the uploaded file itself instead —
+  // parsers fall back to placeholder text when it's absent.
+  content?: string;
 }
 
 export interface DocumentChunk {

@@ -2,16 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import DocumentCard from "@/components/DocumentCard";
 import DocumentStatus from "@/components/DocumentStatus";
+import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
 import WorkflowCard from "@/components/WorkflowCard";
 import {
-  documents,
+  getAllDocuments,
   formatFileSize,
   getDocumentById,
   PROCESSING_STAGES,
 } from "@/data/documents";
-import { workers } from "@/data/workers";
+import { getAllWorkers } from "@/data/workers";
+import { enrichDocument } from "@/lib/enterprise/BusinessInsights";
+import { summarizeDocument } from "@/lib/services/knowledge/DocumentIntelligenceService";
 import { getKnowledgePipelineResult } from "@/lib/services/knowledge/knowledgeHubBridge";
 
 const PIPELINE_STATUS_TONE: Record<string, string> = {
@@ -34,11 +37,11 @@ const CORE_USAGE_WORKERS = [
 ];
 
 export function generateStaticParams() {
-  return documents.map((document) => ({ id: document.id }));
+  return getAllDocuments().map((document) => ({ id: document.id }));
 }
 
 function findWorkflowDescription(name: string): string {
-  for (const worker of workers) {
+  for (const worker of getAllWorkers()) {
     const match = worker.workflows.find((workflow) => workflow.name === name);
     if (match) return match.description;
   }
@@ -57,12 +60,14 @@ export default async function DocumentDetailPage({
     notFound();
   }
 
-  const relatedWorkers = workers.filter((worker) => document.usedBy.includes(worker.name));
+  const relatedWorkers = getAllWorkers().filter((worker) => document.usedBy.includes(worker.name));
   const relatedDocuments = document.relatedDocuments
     .map((relatedId) => getDocumentById(relatedId))
     .filter((related): related is NonNullable<typeof related> => Boolean(related));
   const currentStageIndex = PROCESSING_STAGES.indexOf(document.processingStage);
   const pipelineResult = await getKnowledgePipelineResult(document.id);
+  const { usageCount, businessImportance } = enrichDocument(document);
+  const intelligence = await summarizeDocument(document);
 
   return (
     <div className="max-w-5xl space-y-10">
@@ -79,6 +84,13 @@ export default async function DocumentDetailPage({
             <h1 className="mt-2 text-3xl font-bold text-white">{document.name}</h1>
           </div>
           <DocumentStatus status={document.status} />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <PriorityBadge priority={businessImportance} />
+          <span className="text-xs text-slate-500">
+            Used {usageCount} time{usageCount === 1 ? "" : "s"} across the Digital Workforce
+          </span>
         </div>
 
         <p className="mt-6 max-w-3xl text-slate-300">{document.description}</p>
@@ -194,6 +206,64 @@ export default async function DocumentDetailPage({
         ) : (
           <p className="text-sm text-slate-500">No pipeline data available for this document.</p>
         )}
+      </section>
+
+      <section>
+        <SectionTitle
+          title="Executive Worker Summary"
+          description="The Executive Worker's read of this document — a deterministic preview when Live AI is off, a real AI-generated brief when it's on, always in the same shape."
+        />
+        <div className="rounded-xl bg-slate-900 p-6">
+          <p className="text-sm text-slate-200">{intelligence.executiveSummary}</p>
+
+          <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Key Findings</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                {intelligence.keyFindings.map((finding, index) => (
+                  <li key={index}>• {finding}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Risks</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                {intelligence.businessRisks.map((risk, index) => (
+                  <li key={index}>• {risk}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Opportunities</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                {intelligence.businessOpportunities.map((opportunity, index) => (
+                  <li key={index}>• {opportunity}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Recommended Actions</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-300">
+              {intelligence.recommendedActions.map((action, index) => (
+                <li key={index}>• {action}</li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="mt-6 border-t border-slate-800 pt-4 text-sm text-slate-400">
+            <span className="font-medium text-slate-300">Executive Conclusion: </span>
+            {intelligence.executiveConclusion}
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <TagBadge label={`Sources: ${intelligence.knowledgeSourcesUsed.join(", ")}`} />
+            <TagBadge label={`Model: ${intelligence.modelUsed}`} />
+            <TagBadge label={intelligence.source} />
+            <TagBadge label={`Generation Time: ${intelligence.generationTimeMs === 0 ? "Instant" : `${intelligence.generationTimeMs}ms`}`} />
+          </div>
+        </div>
       </section>
 
       <section>

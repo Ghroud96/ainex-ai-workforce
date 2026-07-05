@@ -1,4 +1,4 @@
-import { documents as knowledgeHubDocuments, type DigitalDocument, type DocumentStatusValue } from "@/data/documents";
+import { getAllDocuments, type DigitalDocument, type DocumentStatusValue } from "@/data/documents";
 import type { KnowledgeIndexEntry, Document, PipelineStatus } from "@/lib/knowledge/types";
 import { KnowledgeService, type IngestedDocument } from "@/lib/services/knowledge/KnowledgeService";
 
@@ -34,6 +34,7 @@ function toDocument(source: DigitalDocument): Document {
     fileName: source.name,
     fileType: mapFileType(source.fileType),
     sizeKb: source.sizeKb,
+    content: source.description,
     metadata: {
       title: source.name,
       department: source.department,
@@ -58,11 +59,24 @@ export interface KnowledgePipelineResult {
 
 type CacheEntry = { ingested: IngestedDocument | null; status: PipelineStatus };
 
-let cache: Map<string, CacheEntry> | null = null;
+// Anchored to globalThis, not a plain module-level `let` — same reason as
+// lib/enterprise/CompanyProfileStore.ts: Next.js/Turbopack can compile a
+// Server Action's bundle (e.g. app/knowledge/actions.ts) and a page's
+// Server Component bundle as separate module graphs, each getting its own
+// evaluation of this file, so resetCache() called from one graph wouldn't
+// invalidate the other's stale copy. A real bug found during Knowledge
+// Upload verification: uploading a second document showed no pipeline data
+// on its detail page because the page's module graph still held the cache
+// built before that upload.
+const GLOBAL_KEY = Symbol.for("ainex.knowledgeHubBridge.cache");
+
+type GlobalWithCache = typeof globalThis & { [GLOBAL_KEY]?: Map<string, CacheEntry> | null };
+
+const globalWithCache = globalThis as GlobalWithCache;
 
 async function buildCache(): Promise<Map<string, CacheEntry>> {
   const entries = await Promise.all(
-    knowledgeHubDocuments.map(async (source): Promise<readonly [string, CacheEntry]> => {
+    getAllDocuments().map(async (source): Promise<readonly [string, CacheEntry]> => {
       const status = mapPipelineStatus(source.status);
       const readyToIndex = status === "Ready" || status === "Indexed";
       const ingested = readyToIndex ? await KnowledgeService.ingest(toDocument(source)) : null;
@@ -74,16 +88,25 @@ async function buildCache(): Promise<Map<string, CacheEntry>> {
 }
 
 async function getCache(): Promise<Map<string, CacheEntry>> {
-  if (!cache) {
-    cache = await buildCache();
+  if (!globalWithCache[GLOBAL_KEY]) {
+    globalWithCache[GLOBAL_KEY] = await buildCache();
   }
-  return cache;
+  return globalWithCache[GLOBAL_KEY];
+}
+
+// Invalidates the ingested-document cache above. Called whenever the
+// active company profile changes (lib/enterprise/CompanyProfileStore.ts)
+// or a new document is uploaded (app/knowledge/actions.ts) so the
+// Knowledge Pipeline re-ingests the current document set on next read,
+// instead of continuing to serve a stale, already-cached index.
+export function resetCache(): void {
+  globalWithCache[GLOBAL_KEY] = null;
 }
 
 export async function getKnowledgePipelineResult(
   documentId: string,
 ): Promise<KnowledgePipelineResult | undefined> {
-  const source = knowledgeHubDocuments.find((document) => document.id === documentId);
+  const source = getAllDocuments().find((document) => document.id === documentId);
   if (!source) return undefined;
 
   const entry = (await getCache()).get(documentId);

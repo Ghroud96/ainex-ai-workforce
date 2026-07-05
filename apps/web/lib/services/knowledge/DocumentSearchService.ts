@@ -1,4 +1,4 @@
-import { documents, type DigitalDocument } from "@/data/documents";
+import { getAllDocuments, type DigitalDocument } from "@/data/documents";
 import type { RetrievalContext, SearchResult } from "@/lib/knowledge/types";
 
 export interface DocumentSearchFilter {
@@ -76,7 +76,7 @@ function scoreDocument(document: DigitalDocument, queryTerms: string[]): number 
 export function searchDocuments(queryText: string, filter: DocumentSearchFilter = {}): SearchResult[] {
   const queryTerms = tokenize(queryText).filter((term) => !STOPWORDS.has(term));
 
-  return documents
+  return getAllDocuments()
     .filter((document) => !filter.department || document.department === filter.department)
     .filter((document) => !filter.category || document.category === filter.category)
     .map((document) => toSearchResult(document, scoreDocument(document, queryTerms)))

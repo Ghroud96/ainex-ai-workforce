@@ -2,19 +2,50 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ScenarioSwitcher from "@/components/ScenarioSwitcher";
+import UserSwitcher from "@/components/UserSwitcher";
+import type { CompanySize, Industry } from "@/lib/enterprise/EnterpriseTypes";
+import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
 
 const navItems = [
   { label: "Executive Intelligence", href: "/dashboard" },
   { label: "Digital Workforce", href: "/workforce" },
+  { label: "Enterprise Users", href: "/users" },
   { label: "Knowledge Hub", href: "/knowledge" },
   { label: "Workflow Automation", href: "/workflows" },
+  { label: "Decision Center", href: "/decisions" },
+  { label: "Presentation Mode", href: "/presentation" },
   { label: "Enterprise Integrations", href: "/integrations" },
-  { label: "AI Chat", href: "/chat" },
+  { label: "Executive Conversation", href: "/chat" },
   { label: "Settings", href: "/settings" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({
+  industry,
+  size,
+  users,
+  currentUserId,
+}: {
+  industry: Industry;
+  size: CompanySize;
+  users: EnterpriseUser[];
+  currentUserId: string;
+}) {
   const pathname = usePathname();
+
+  // Presentation Mode wants minimal navigation — a full route-group
+  // restructure was rejected (it would force every route to move and
+  // trigger a full page reload on entry/exit); Sidebar already reads
+  // usePathname() for active-link styling, so it self-gates here instead.
+  if (pathname?.startsWith("/presentation")) {
+    return (
+      <aside className="w-56 shrink-0 border-r border-slate-800 p-6">
+        <Link href="/dashboard" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+          ← Exit Presentation Mode
+        </Link>
+      </aside>
+    );
+  }
 
   return (
     <aside className="w-64 shrink-0 border-r border-slate-800 p-6">
@@ -38,6 +69,9 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <ScenarioSwitcher industry={industry} size={size} />
+      <UserSwitcher users={users} currentUserId={currentUserId} />
     </aside>
   );
 }

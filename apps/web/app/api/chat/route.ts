@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
-import { ProviderRegistry } from "@/lib/llm/ProviderRegistry";
-import { appendSourceFooter, buildBasicRagContext, buildSystemMessage } from "@/lib/rag/BasicRagAdapter";
+import { ProductionRagService, type ProductionRagResponse } from "@/lib/rag/ProductionRagService";
+
+// ChatPanel (Sprint 2, unmodified) renders a single reply string, so the
+// structured ProductionRagResponse is flattened here into one
+// deterministic, code-enforced line — not left to the model's discretion
+// — the same guarantee Phase C3's BasicRagAdapter made for its simpler
+// keyword-only pipeline. sources and safetyMessage are never both empty:
+// ProductionRagService always sets a safetyMessage when there are zero
+// sources.
+function buildReply(result: ProductionRagResponse): string {
+  if (result.finishReason === "error") return result.answer;
+
+  const lines: string[] = [];
+  if (result.sources.length > 0) {
+    lines.push(`Sources: ${result.sources.map((source) => `${source.label} ${source.title}`).join(", ")}`);
+  }
+  if (result.safetyMessage) {
+    lines.push(result.safetyMessage);
+  }
+
+  return `${result.answer}\n\n— ${lines.join(" ")}`;
+}
 
 export async function POST(req: Request) {
   try {
@@ -10,26 +30,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: "Please enter a message." });
     }
 
-    const provider = ProviderRegistry.getActive();
-    if (!provider) {
-      return NextResponse.json({ reply: "No AI provider is currently available." });
-    }
-
-    const ragContext = buildBasicRagContext(message);
-    const systemMessage = buildSystemMessage(ragContext);
-
-    const response = await provider.chat({
-      model: provider.listModels()[0]?.id ?? "unknown",
-      messages: [systemMessage, { role: "user", content: message }],
-    });
-
-    // Provider-level failures (missing key, quota, timeout, unavailable)
-    // already carry a friendly message in `content` — don't append a
-    // "Sources" footer to an error.
-    const reply =
-      response.finishReason === "error" ? response.content : appendSourceFooter(response.content, ragContext);
-
-    return NextResponse.json({ reply });
+    const result = await ProductionRagService.answer(message);
+    return NextResponse.json({ reply: buildReply(result) });
   } catch (error) {
     console.error("CHAT API ERROR:", error);
 

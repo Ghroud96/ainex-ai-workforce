@@ -1,3 +1,4 @@
+import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { hasCapability, type ProviderCapabilities, type ProviderCapabilityKey } from "@/lib/llm/ProviderCapability";
 import type { ProviderConfig } from "@/lib/llm/ProviderConfig";
 import type { ProviderContext } from "@/lib/llm/ProviderContext";
@@ -7,6 +8,7 @@ import { providerMetricsCollector } from "@/lib/llm/ProviderMetrics";
 import type { CostEstimate, LLMProvider } from "@/lib/llm/Provider";
 import type { ProviderChatRequest } from "@/lib/llm/ProviderRequest";
 import type { ProviderResponse, ProviderStreamChunk } from "@/lib/llm/ProviderResponse";
+import { openAiEmbeddingProvider } from "@/lib/embeddings/OpenAIEmbeddingProvider";
 import type { EmbeddingVector } from "@/lib/embeddings/types";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -16,7 +18,7 @@ const DEFAULT_TIMEOUT_MS = 30000;
 const CAPABILITIES: ProviderCapabilities = {
   chat: true,
   streaming: true,
-  embeddings: false,
+  embeddings: true,
   vision: false,
   functionCalling: false,
   costEstimation: false,
@@ -28,6 +30,20 @@ function errorResponse(model: string, message: string): ProviderResponse {
     model,
     content: message,
     finishReason: "error",
+    usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// A deliberate, honest stand-in — not an error — for when Live Mode is off
+// (the default). finishReason "stop" so callers treat this as a normal,
+// successful demo answer rather than a failure to handle.
+function demoModeResponse(model: string): ProviderResponse {
+  return {
+    providerId: "openai",
+    model,
+    content: "AINEX is running in demo mode — no real OpenAI request was made. Live AI is off by default; enabling it is a future, explicit opt-in.",
+    finishReason: "stop",
     usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     generatedAt: new Date().toISOString(),
   };
@@ -67,6 +83,11 @@ export class OpenAIProvider implements LLMProvider {
 
   async chat(request: ProviderChatRequest, context?: ProviderContext): Promise<ProviderResponse> {
     const model = request.model && request.model !== "unknown" ? request.model : this.config?.defaultModel ?? DEFAULT_MODEL;
+
+    if (!AiModeStore.isLiveModeEnabled()) {
+      return demoModeResponse(model);
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     const traceTag = context?.requestId ? ` (requestId: ${context.requestId})` : "";
 
@@ -155,10 +176,13 @@ export class OpenAIProvider implements LLMProvider {
     yield { providerId: this.id, model: response.model, delta: "", done: true };
   }
 
-  async embed(): Promise<EmbeddingVector> {
-    throw new Error(
-      "OpenAI embeddings are not implemented yet — this phase uses keyword-based retrieval instead. See docs/architecture/retrieval.md.",
-    );
+  async embed(text: string): Promise<EmbeddingVector> {
+    // Delegates to the same EmbeddingProvider the Knowledge Pipeline uses
+    // (lib/embeddings/OpenAIEmbeddingProvider.ts) rather than a second,
+    // duplicate implementation — this method exists so LLMProvider is a
+    // complete interface, but lib/retriever and lib/services/IndexService
+    // call the embeddings module directly, not this one.
+    return openAiEmbeddingProvider.embed(text);
   }
 
   async health(): Promise<ProviderHealthReport> {
