@@ -3,8 +3,16 @@ import KnowledgeStatCard from "@/components/KnowledgeStatCard";
 import ModuleCard from "@/components/ModuleCard";
 import PageHeader from "@/components/PageHeader";
 import SectionTitle from "@/components/SectionTitle";
+import TagBadge from "@/components/TagBadge";
 import { getAllDocuments, formatFileSize, type DigitalDocument } from "@/data/documents";
+import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
 import { getKnowledgePipelineSummary } from "@/lib/services/knowledge/knowledgeHubBridge";
+
+const COVERAGE_TONE: Record<string, string> = {
+  Strong: "bg-green-500/10 text-green-400",
+  Developing: "bg-amber-500/10 text-amber-400",
+  Early: "bg-red-500/10 text-red-400",
+};
 
 const roadmapItems = [
   {
@@ -59,6 +67,7 @@ export default async function KnowledgePage() {
   const latestDocument = sortedByDate[0];
   const recentActivity = sortedByDate.slice(0, 5);
   const pipelineSummary = await getKnowledgePipelineSummary();
+  const intelligence = buildCompanyIntelligenceOverview();
 
   return (
     <>
@@ -79,6 +88,52 @@ export default async function KnowledgePage() {
         />
         <KnowledgeStatCard title="Indexed Documents" value={String(indexedCount)} />
         <KnowledgeStatCard title="Pending Processing" value={String(pendingCount)} />
+      </div>
+
+      <div className="mt-10">
+        <SectionTitle
+          title="Company Intelligence Overview"
+          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on — deterministic, no AI involved."
+        />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl bg-slate-900 p-6">
+            <p className="text-slate-400">Knowledge Coverage</p>
+            <div className="mt-4 flex items-center gap-3">
+              <h3 className="text-3xl font-bold">{intelligence.coverageScore}/100</h3>
+              <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${COVERAGE_TONE[intelligence.coverageLabel]}`}>
+                {intelligence.coverageLabel}
+              </span>
+            </div>
+          </div>
+          <KnowledgeStatCard title="Knowledge Categories" value={String(intelligence.categoryCounts.length)} />
+          <KnowledgeStatCard title="Departments Ready" value={`${intelligence.knowledgeReadyDepartments.length} of ${intelligence.departmentCoverage.length}`} />
+          <KnowledgeStatCard title="Missing Knowledge Areas" value={String(intelligence.missingKnowledgeAreas.length)} />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="rounded-xl bg-slate-900 p-6">
+            <p className="mb-3 text-xs font-medium tracking-wide text-slate-500 uppercase">Department Coverage</p>
+            <div className="space-y-2">
+              {intelligence.departmentCoverage.map((entry) => (
+                <div key={entry.department} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">{entry.department}</span>
+                  <TagBadge label={entry.count === 0 ? "No documents" : `${entry.count} document${entry.count === 1 ? "" : "s"}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-xl bg-slate-900 p-6">
+            <p className="mb-3 text-xs font-medium tracking-wide text-slate-500 uppercase">Company Intelligence Sources</p>
+            <div className="space-y-2">
+              {intelligence.sources.map((source) => (
+                <div key={source.id} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">{source.name}</span>
+                  <TagBadge label={source.isImplemented ? `Connected — ${source.documentCount()} documents` : "Not Yet Connected"} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mt-10">

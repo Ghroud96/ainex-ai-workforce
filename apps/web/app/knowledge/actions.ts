@@ -6,6 +6,7 @@ import { categories } from "@/data/categories";
 import type { Department } from "@/data/departments";
 import { departments } from "@/data/departments";
 import type { DigitalDocument, FileType } from "@/data/documents";
+import { deriveUsedByForDepartment } from "@/lib/company-intelligence/WorkerKnowledgeMap";
 import { resetCache } from "@/lib/services/knowledge/knowledgeHubBridge";
 import { UploadedDocumentStore } from "@/lib/knowledge/UploadedDocumentStore";
 
@@ -89,7 +90,10 @@ export async function uploadDocument(formData: FormData): Promise<void> {
     fileType,
     sizeKb: Math.max(1, Math.round(file.size / 1024)),
     tags: [],
-    usedBy: [],
+    // Derived from department, not left empty — this is what makes an
+    // upload immediately usable Company Intelligence for the relevant
+    // Worker(s), with no manual tagging step.
+    usedBy: deriveUsedByForDepartment(department),
     workflows: [],
     relatedDocuments: [],
   };

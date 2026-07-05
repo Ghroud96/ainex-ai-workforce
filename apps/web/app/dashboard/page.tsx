@@ -13,6 +13,7 @@ import {
   enrichBusinessEvent,
   enrichKpi,
 } from "@/lib/enterprise/BusinessInsights";
+import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { buildSimulatedEventFeed } from "@/lib/enterprise/LiveSimulationBuilder";
 import {
@@ -23,6 +24,7 @@ import {
   buildUpcomingEvents,
   buildWorkforceActivityFeed,
 } from "@/lib/enterprise/NarrativeBuilder";
+import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 import { WorkflowService } from "@/lib/workflow/WorkflowService";
 
 const HEALTH_TONE: Record<string, string> = {
@@ -48,6 +50,16 @@ export default function DashboardPage() {
   const healthScore = computeBusinessHealthScore(company);
   const recommendedActions = buildRecommendedActions(company);
   const simulatedEvents = buildSimulatedEventFeed(company);
+
+  // Enterprise Demo V1 — the connected Sales -> Manager -> Finance story
+  // automatically reflected here, zero AI calls, same deterministic-read
+  // pattern as every other tile on this page.
+  const deals = SalesDealStore.listFor(company);
+  const dealsPendingApproval = deals.filter(
+    (deal) => deal.stage === "pending-manager-approval" || deal.stage === "pending-finance-review",
+  ).length;
+  const dealsConfirmed = deals.filter((deal) => deal.stage === "confirmed").length;
+  const intelligence = buildCompanyIntelligenceOverview();
 
   return (
     <>
@@ -130,6 +142,30 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      <section className="mt-10">
+        <SectionTitle
+          title="Sales Order Pipeline"
+          description="Live status of the connected Sales -> Manager -> Finance workflow — updates automatically, no AI involved."
+        />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <KpiCard title="Orders Pending Approval" value={dealsPendingApproval.toString()} />
+          <KpiCard title="Orders Confirmed" value={dealsConfirmed.toString()} />
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <SectionTitle
+          title="Company Intelligence"
+          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on — deterministic, no AI involved."
+        />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard title="Knowledge Coverage" value={`${intelligence.coverageScore}/100`} />
+          <KpiCard title="Documents Uploaded" value={String(intelligence.totalDocuments)} />
+          <KpiCard title="Departments Ready" value={`${intelligence.knowledgeReadyDepartments.length} of ${intelligence.departmentCoverage.length}`} />
+          <KpiCard title="Recently Added" value={String(intelligence.recentlyUploaded.length)} />
+        </div>
+      </section>
 
       <section className="mt-10">
         <SectionTitle

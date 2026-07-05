@@ -9,6 +9,7 @@ import ToolCard from "@/components/ToolCard";
 import WorkerCapability from "@/components/WorkerCapability";
 import WorkerHeader from "@/components/WorkerHeader";
 import WorkflowCard from "@/components/WorkflowCard";
+import WorkflowStepPanel from "@/components/WorkflowStepPanel";
 import { analyzeDocumentAsWorker } from "@/app/workforce/aiActions";
 import { getAllDocuments, type DigitalDocument } from "@/data/documents";
 import { getAllWorkers } from "@/data/workers";
@@ -19,6 +20,9 @@ import { canAccessWorker, type DepartmentWorkerId } from "@/lib/enterprise/Enter
 import { buildCollaborationChain, buildTodaysActivity } from "@/lib/enterprise/NarrativeBuilder";
 import type { PlanStep } from "@/lib/planning/PlanTypes";
 import { WorkerRuntime } from "@/lib/runtime/WorkerRuntime";
+import { SalesDealStore } from "@/lib/sales/SalesDealStore";
+import { STAGE_CONFIG } from "@/lib/sales/SalesDealTypes";
+import { rankPriorityCustomers } from "@/lib/sales/SalesPriorityBuilder";
 import { getRetrievalReadyDocumentIds } from "@/lib/services/knowledge/knowledgeHubBridge";
 import { WorkerAnalysisResultStore } from "@/lib/services/knowledge/WorkerAnalysisResultStore";
 import type { PersonaId, WorkerAnalysisResult } from "@/lib/services/knowledge/WorkerAnalysisService";
@@ -26,7 +30,10 @@ import { WorkflowService } from "@/lib/workflow/WorkflowService";
 import type { WorkflowRun } from "@/lib/workflow/WorkflowTypes";
 import { WorkforceService } from "@/services/workforce/WorkforceService";
 
-const AI_ANALYSIS_PERSONA_IDS: readonly string[] = ["executive", "sales", "finance", "inventory", "hr"];
+// "sales" deliberately excluded — its Worker AI Analysis section is
+// replaced entirely by the Sales Workspace (Business Monitor + connected
+// deal workflow) below, per Enterprise Demo V1.
+const AI_ANALYSIS_PERSONA_IDS: readonly string[] = ["executive", "finance", "inventory", "hr"];
 
 export function generateStaticParams() {
   return getAllWorkers().map((worker) => ({ slug: worker.slug }));
@@ -64,6 +71,17 @@ export default async function WorkerDetailPage({
   // only gates whether the Worker AI Analysis section further down can
   // actually be executed by the current simulated user.
   const hasExecuteAccess = canAccessWorker(currentUser, workerInstance.id as DepartmentWorkerId);
+
+  // Enterprise Demo V1 — the connected Sales -> Manager -> Finance story.
+  const isSalesManager = currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff";
+  const priorityCustomers = workerInstance.id === "sales" ? rankPriorityCustomers(company, currentUser) : [];
+  const allDeals = workerInstance.id === "sales" || workerInstance.id === "finance" ? SalesDealStore.listFor(company) : [];
+  const myDeals = workerInstance.id === "sales" ? allDeals.filter((deal) => deal.ownerUserId === currentUser.id) : [];
+  const dealsAwaitingManager = workerInstance.id === "sales" && isSalesManager
+    ? allDeals.filter((deal) => deal.stage === "pending-manager-approval")
+    : [];
+  const dealsAwaitingFinance = workerInstance.id === "finance" ? allDeals.filter((deal) => deal.stage === "pending-finance-review") : [];
+
   const todaysActivity = buildTodaysActivity(workerInstance.id, company);
   const collaborationStep = buildCollaborationChain(company).find((step) => step.workerId === workerInstance.id);
 
@@ -468,6 +486,128 @@ export default async function WorkerDetailPage({
         />
       </section>
 
+      {workerInstance.id === "sales" && (
+        <>
+          <section>
+            <SectionTitle
+              title="Business Monitor"
+              description="Who should I follow up today? Ranked automatically from real account data — no AI involved."
+            />
+            {priorityCustomers.length === 0 ? (
+              <p className="text-sm text-slate-500">No customers assigned to you yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {priorityCustomers.map((row) => (
+                  <div key={row.customer.id} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-white">{row.customer.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">{row.followUpReason}</p>
+                      </div>
+                      <PriorityBadge priority={row.priority} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <TagBadge label={`Opportunity: ${row.estimatedOpportunity.toLocaleString()}`} />
+                      <TagBadge label={`Last interaction: ${row.lastInteraction}`} />
+                      <TagBadge label={row.suggestedAction} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <SectionTitle
+              title="My Deals"
+              description="Every step may optionally use AI. Review each result before continuing — AI assists, you decide."
+            />
+            {!hasExecuteAccess ? (
+              <ExecutionRestrictedNotice />
+            ) : myDeals.length === 0 ? (
+              <p className="text-sm text-slate-500">No active deals right now.</p>
+            ) : (
+              <div className="space-y-4">
+                {myDeals.map((deal) => {
+                  const customer = company.customers.find((c) => c.id === deal.customerId);
+                  const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
+                  return (
+                    <WorkflowStepPanel
+                      key={deal.id}
+                      deal={deal}
+                      customerName={customer?.name ?? "Unknown customer"}
+                      ownerName={owner?.name ?? "Unknown"}
+                      // A rep still sees their own deal once it's with the
+                      // Manager or Finance (tracking progress), but can't
+                      // act on it — that's not their stage anymore.
+                      canAct={deal.ownerUserId === currentUser.id && STAGE_CONFIG[deal.stage].responsibleRole === "Sales Rep"}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {isSalesManager && (
+            <section>
+              <SectionTitle
+                title="Manager Approval"
+                description="Sales orders from your team awaiting your decision."
+              />
+              {dealsAwaitingManager.length === 0 ? (
+                <p className="text-sm text-slate-500">Nothing is awaiting your approval right now.</p>
+              ) : (
+                <div className="space-y-4">
+                  {dealsAwaitingManager.map((deal) => {
+                    const customer = company.customers.find((c) => c.id === deal.customerId);
+                    const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
+                    return (
+                      <WorkflowStepPanel
+                        key={deal.id}
+                        deal={deal}
+                        customerName={customer?.name ?? "Unknown customer"}
+                        ownerName={owner?.name ?? "Unknown"}
+                        canAct
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
+
+      {workerInstance.id === "finance" && (
+        <section>
+          <SectionTitle
+            title="Finance Review"
+            description="Approved sales orders awaiting finance sign-off before the order is confirmed."
+          />
+          {!hasExecuteAccess ? (
+            <ExecutionRestrictedNotice />
+          ) : dealsAwaitingFinance.length === 0 ? (
+            <p className="text-sm text-slate-500">Nothing is awaiting finance review right now.</p>
+          ) : (
+            <div className="space-y-4">
+              {dealsAwaitingFinance.map((deal) => {
+                const customer = company.customers.find((c) => c.id === deal.customerId);
+                const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
+                return (
+                  <WorkflowStepPanel
+                    key={deal.id}
+                    deal={deal}
+                    customerName={customer?.name ?? "Unknown customer"}
+                    ownerName={owner?.name ?? "Unknown"}
+                    canAct
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {AI_ANALYSIS_PERSONA_IDS.includes(workerInstance.id) && (
         <section>
           <SectionTitle
@@ -565,7 +705,7 @@ function WorkerAiAnalysisBlock({
             </div>
           ))}
           <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-4">
-            <TagBadge label={`Sources: ${result.knowledgeSourcesUsed.join(", ")}`} />
+            <TagBadge label={`Company Intelligence Used: ${result.knowledgeSourcesUsed.join(", ")}`} />
             <TagBadge label={`Model: ${result.modelUsed}`} />
             <TagBadge label={result.source} />
           </div>

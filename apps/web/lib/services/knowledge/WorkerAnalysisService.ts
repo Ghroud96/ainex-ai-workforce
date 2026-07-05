@@ -7,11 +7,14 @@ import {
   getOverdueInvoices,
   sumInvoiceAmounts,
 } from "@/lib/enterprise/CompanyGenerator";
+import { WORKER_NAMES_BY_ID } from "@/lib/enterprise/BusinessInsights";
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
-import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
+import type { DepartmentWorkerId, EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
+import { getRelevantDocuments, withKnowledgeCitation } from "@/lib/company-intelligence/RelevantKnowledge";
 import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { createProviderContext } from "@/lib/llm/ProviderContext";
 import { ProviderRegistry } from "@/lib/llm/ProviderRegistry";
+import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 
 export type PersonaId = "executive" | "sales" | "executive-assistant" | "finance" | "inventory" | "hr";
 
@@ -38,7 +41,7 @@ interface SectionSchemaEntry {
 }
 
 interface PersonaConfig {
-  workerId: string;
+  workerId: DepartmentWorkerId;
   personaLabel: string;
   sectionSchema: SectionSchemaEntry[];
   systemPrompt: string;
@@ -46,8 +49,16 @@ interface PersonaConfig {
     document: DigitalDocument,
     company: GeneratedCompany,
     currentUser: EnterpriseUser,
+    relevantDocuments: DigitalDocument[],
   ) => Record<string, string | string[]>;
 }
+
+// Appended to every persona's system prompt so a Live AI response reads as
+// grounded in named company documents ("Based on your Sales SOP...")
+// rather than a generic answer — the documents themselves are supplied in
+// the user message content, never invented by the model.
+const KNOWLEDGE_CITATION_INSTRUCTION =
+  " If relevant company documents are listed in the user message, reference them naturally by name (e.g. \"Based on your Sales SOP...\", \"According to your Pricing sheet...\") — never invent a document that wasn't provided.";
 
 function firstSentences(text: string, count: number): string {
   const sentences = text.split(/(?<=[.!?])\s+/).filter((sentence) => sentence.trim().length > 0);
@@ -61,12 +72,17 @@ function firstSentences(text: string, count: number): string {
 // to draw on and stays honestly generic). Only the AI-call skeleton below
 // is shared — that's the part six real call sites actually justify reusing.
 
-function buildExecutiveAnalysisBase(document: DigitalDocument, company: GeneratedCompany): Record<string, string | string[]> {
+function buildExecutiveAnalysisBase(
+  document: DigitalDocument,
+  company: GeneratedCompany,
+  _currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
+): Record<string, string | string[]> {
   const overdue = getOverdueInvoices(company);
   const atRisk = getAtRiskCustomers(company);
 
   return {
-    executiveSummary: firstSentences(document.description, 2) || document.description,
+    executiveSummary: withKnowledgeCitation(relevantDocuments, firstSentences(document.description, 2) || document.description),
     businessRisks: [
       overdue.length > 0
         ? `${overdue.length} overdue invoice${overdue.length === 1 ? "" : "s"} totaling ${formatCurrency(sumInvoiceAmounts(overdue), company.profile.currency)}.`
@@ -82,13 +98,36 @@ function buildExecutiveAnalysisBase(document: DigitalDocument, company: Generate
 
 // Genuinely personal — driven entirely by the current user's own assigned
 // tasks/meetings/approvals, not company-wide signals. Replaces the old
-// 5-field department-flavored brief entirely (Capability 04).
+// 5-field department-flavored brief entirely (Capability 04). Enterprise
+// Demo V1 additionally feeds it live deal-workflow events relevant to the
+// current user (a quotation awaiting their approval, a deal they own
+// that's stalled) — an additive data-source change only, no new field or
+// persona, so the Executive Assistant "continuously monitors workflow"
+// and feels proactive rather than reactive.
 function buildExecutiveAssistantAnalysisBase(
   document: DigitalDocument,
-  _company: GeneratedCompany,
+  company: GeneratedCompany,
   currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
 ): Record<string, string | string[]> {
   const { assignedTasks, assignedMeetings, assignedApprovals } = currentUser;
+
+  const deals = SalesDealStore.listFor(company);
+  const dealNoteFor = (dealCustomerId: string) => company.customers.find((customer) => customer.id === dealCustomerId)?.name ?? "a customer";
+
+  const isSalesManager = currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff";
+  const isFinanceUser = currentUser.departmentWorkerId === "finance";
+  const dealFollowUps: string[] = [];
+  if (isSalesManager) {
+    const pending = deals.filter((deal) => deal.stage === "pending-manager-approval");
+    pending.forEach((deal) => dealFollowUps.push(`Sales order for ${dealNoteFor(deal.customerId)} requires your approval.`));
+  }
+  if (isFinanceUser) {
+    const pending = deals.filter((deal) => deal.stage === "pending-finance-review");
+    pending.forEach((deal) => dealFollowUps.push(`Approved order for ${dealNoteFor(deal.customerId)} is awaiting finance review.`));
+  }
+  const myStalledDeals = deals.filter((deal) => deal.ownerUserId === currentUser.id && deal.stage === "revision-requested");
+  myStalledDeals.forEach((deal) => dealFollowUps.push(`Revision requested on the order for ${dealNoteFor(deal.customerId)} — resubmit when ready.`));
 
   return {
     todaysPriorities:
@@ -103,12 +142,17 @@ function buildExecutiveAssistantAnalysisBase(
       assignedTasks.length > 0
         ? assignedTasks.map((task) => `${task.title} — due ${task.dueDate}`)
         : ["No pending tasks."],
-    importantFollowUps: [`Review ${document.name} before responding to related requests.`],
+    importantFollowUps:
+      dealFollowUps.length > 0
+        ? dealFollowUps
+        : [`Review ${document.name} before responding to related requests.`],
     approvalReminders:
       assignedApprovals.length > 0
         ? assignedApprovals.map((approval) => `${approval.title}, requested by ${approval.requestedBy}, due ${approval.dueDate}`)
         : ["No approvals currently pending."],
-    personalRecommendations: [`Confirm ${document.category} documentation is current before your next ${document.department} sync.`],
+    personalRecommendations: [
+      withKnowledgeCitation(relevantDocuments, `Confirm ${document.category} documentation is current before your next ${document.department} sync.`),
+    ],
   };
 }
 
@@ -124,6 +168,7 @@ function buildSalesAnalysisBase(
   document: DigitalDocument,
   company: GeneratedCompany,
   currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
 ): Record<string, string | string[]> {
   const isSalesUser = currentUser.departmentWorkerId === "sales" && currentUser.assignedCustomerIds.length > 0;
   const scopedCustomers = isSalesUser
@@ -142,16 +187,27 @@ function buildSalesAnalysisBase(
     inactiveCustomers: inactive.length > 0 ? inactive.map((customer) => customer.name) : ["No inactive accounts flagged."],
     salesOpportunities: [`${document.name} may support a follow-up conversation with ${document.department}-linked accounts.`],
     followUpPlan: inactive.slice(0, 3).map((customer) => `Contact ${customer.name} this week.`),
-    salesForecast: `Revenue is trending ${company.financials.revenueTrendPct >= 0 ? "up" : "down"} ${Math.abs(company.financials.revenueTrendPct)}% this quarter.`,
+    salesForecast: withKnowledgeCitation(
+      relevantDocuments,
+      `Revenue is trending ${company.financials.revenueTrendPct >= 0 ? "up" : "down"} ${Math.abs(company.financials.revenueTrendPct)}% this quarter.`,
+    ),
   };
 }
 
-function buildFinanceAnalysisBase(document: DigitalDocument, company: GeneratedCompany): Record<string, string | string[]> {
+function buildFinanceAnalysisBase(
+  document: DigitalDocument,
+  company: GeneratedCompany,
+  _currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
+): Record<string, string | string[]> {
   const overdue = getOverdueInvoices(company);
   const { financials, profile } = company;
 
   return {
-    cashFlowSummary: `Cash on hand stands at ${formatCurrency(financials.cashOnHand, profile.currency)}, with net income of ${formatCurrency(financials.netIncome, profile.currency)} this quarter.`,
+    cashFlowSummary: withKnowledgeCitation(
+      relevantDocuments,
+      `Cash on hand stands at ${formatCurrency(financials.cashOnHand, profile.currency)}, with net income of ${formatCurrency(financials.netIncome, profile.currency)} this quarter.`,
+    ),
     overdueInvoices: overdue.length > 0
       ? overdue.map((invoice) => `Invoice ${invoice.invoiceNumber} — ${formatCurrency(invoice.amount, profile.currency)}`)
       : ["No overdue invoices."],
@@ -161,7 +217,12 @@ function buildFinanceAnalysisBase(document: DigitalDocument, company: GeneratedC
   };
 }
 
-function buildInventoryAnalysisBase(document: DigitalDocument, company: GeneratedCompany): Record<string, string | string[]> {
+function buildInventoryAnalysisBase(
+  document: DigitalDocument,
+  company: GeneratedCompany,
+  _currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
+): Record<string, string | string[]> {
   const lowStock = getLowStockInventory(company);
   const supplierRisks = company.suppliers.filter((supplier) => supplier.status === "Under Review");
   const busyWarehouses = company.warehouses.filter((warehouse) => warehouse.utilizationPct >= 85);
@@ -174,14 +235,25 @@ function buildInventoryAnalysisBase(document: DigitalDocument, company: Generate
       ? lowStock.slice(0, 3).map((item) => `Reorder ${findProductName(company, item.productId)}.`)
       : ["No reorders needed at this time."],
     supplierRisks: supplierRisks.length > 0 ? supplierRisks.map((supplier) => `${supplier.name} is under review.`) : ["No suppliers currently under review."],
-    inventoryForecast: `${company.warehouses.length} warehouse${company.warehouses.length === 1 ? "" : "s"} tracked; stock levels are ${lowStock.length > 0 ? "tightening" : "healthy"} overall.`,
+    inventoryForecast: withKnowledgeCitation(
+      relevantDocuments,
+      `${company.warehouses.length} warehouse${company.warehouses.length === 1 ? "" : "s"} tracked; stock levels are ${lowStock.length > 0 ? "tightening" : "healthy"} overall.`,
+    ),
     warehouseIssues: busyWarehouses.length > 0 ? busyWarehouses.map((warehouse) => `${warehouse.name} is at ${warehouse.utilizationPct}% capacity.`) : ["No warehouse capacity issues flagged."],
   };
 }
 
-function buildHrAnalysisBase(document: DigitalDocument, company: GeneratedCompany): Record<string, string | string[]> {
+function buildHrAnalysisBase(
+  document: DigitalDocument,
+  company: GeneratedCompany,
+  _currentUser: EnterpriseUser,
+  relevantDocuments: DigitalDocument[],
+): Record<string, string | string[]> {
   return {
-    leaveSummary: `No unusual leave patterns flagged across ${company.profile.employeeCount.toLocaleString()} employees.`,
+    leaveSummary: withKnowledgeCitation(
+      relevantDocuments,
+      `No unusual leave patterns flagged across ${company.profile.employeeCount.toLocaleString()} employees.`,
+    ),
     hiringNeeds: [`No urgent hiring need flagged for ${document.department} at this time.`],
     trainingNeeds: [document.category === "Training" ? `${document.name} may inform onboarding for ${document.department}.` : `No training gap flagged from ${document.name}.`],
     staffRisks: ["No elevated staff risk identified."],
@@ -200,7 +272,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "recommendedDecisions", label: "Recommended Decisions", type: "list" },
     ],
     systemPrompt:
-      'You are the Executive Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "executiveSummary" (string), "businessRisks" (array of strings), "opportunities" (array of strings), "recommendedDecisions" (array of strings).',
+      'You are an experienced CEO advisor for this enterprise, speaking with the authority and judgment of a seasoned executive — not a generic assistant. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "executiveSummary" (string), "businessRisks" (array of strings), "opportunities" (array of strings), "recommendedDecisions" (array of strings).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildExecutiveAnalysisBase,
   },
   "executive-assistant": {
@@ -215,7 +288,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "personalRecommendations", label: "Personal Recommendations", type: "list" },
     ],
     systemPrompt:
-      'You are the Executive Assistant for an enterprise Digital Workforce platform, personalized for the current logged-in user. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "todaysPriorities" (array of strings), "upcomingMeetings" (array of strings), "pendingTasks" (array of strings), "importantFollowUps" (array of strings), "approvalReminders" (array of strings), "personalRecommendations" (array of strings).',
+      'You are the Executive Assistant for an enterprise Digital Workforce platform, personalized for the current logged-in user. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "todaysPriorities" (array of strings), "upcomingMeetings" (array of strings), "pendingTasks" (array of strings), "importantFollowUps" (array of strings), "approvalReminders" (array of strings), "personalRecommendations" (array of strings).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildExecutiveAssistantAnalysisBase,
   },
   sales: {
@@ -229,7 +303,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "salesForecast", label: "Sales Forecast", type: "text" },
     ],
     systemPrompt:
-      'You are the Sales Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "topCustomers" (array of strings), "inactiveCustomers" (array of strings), "salesOpportunities" (array of strings), "followUpPlan" (array of strings), "salesForecast" (string).',
+      'You are the Sales Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "topCustomers" (array of strings), "inactiveCustomers" (array of strings), "salesOpportunities" (array of strings), "followUpPlan" (array of strings), "salesForecast" (string).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildSalesAnalysisBase,
   },
   finance: {
@@ -243,7 +318,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "recommendedActions", label: "Recommended Actions", type: "list" },
     ],
     systemPrompt:
-      'You are the Finance Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "cashFlowSummary" (string), "overdueInvoices" (array of strings), "costConcerns" (array of strings), "financialRisks" (array of strings), "recommendedActions" (array of strings).',
+      'You are the Finance Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "cashFlowSummary" (string), "overdueInvoices" (array of strings), "costConcerns" (array of strings), "financialRisks" (array of strings), "recommendedActions" (array of strings).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildFinanceAnalysisBase,
   },
   inventory: {
@@ -257,7 +333,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "warehouseIssues", label: "Warehouse Issues", type: "list" },
     ],
     systemPrompt:
-      'You are the Inventory Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "lowStockItems" (array of strings), "reorderSuggestions" (array of strings), "supplierRisks" (array of strings), "inventoryForecast" (string), "warehouseIssues" (array of strings).',
+      'You are the Inventory Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "lowStockItems" (array of strings), "reorderSuggestions" (array of strings), "supplierRisks" (array of strings), "inventoryForecast" (string), "warehouseIssues" (array of strings).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildInventoryAnalysisBase,
   },
   hr: {
@@ -271,7 +348,8 @@ const WORKER_ANALYSIS_CONFIGS: Record<PersonaId, PersonaConfig> = {
       { key: "recommendedActions", label: "Recommended Actions", type: "list" },
     ],
     systemPrompt:
-      'You are the HR Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "leaveSummary" (string), "hiringNeeds" (array of strings), "trainingNeeds" (array of strings), "staffRisks" (array of strings), "recommendedActions" (array of strings).',
+      'You are the HR Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary. Keys: "leaveSummary" (string), "hiringNeeds" (array of strings), "trainingNeeds" (array of strings), "staffRisks" (array of strings), "recommendedActions" (array of strings).' +
+      KNOWLEDGE_CITATION_INSTRUCTION,
     buildDeterministicBase: buildHrAnalysisBase,
   },
 };
@@ -322,9 +400,21 @@ export async function analyzeDocumentForWorker(
   currentUser: EnterpriseUser,
 ): Promise<WorkerAnalysisResult> {
   const config = WORKER_ANALYSIS_CONFIGS[personaId];
-  const baseData = config.buildDeterministicBase(document, company, currentUser);
+
+  // Company Intelligence — automatically determines which of the
+  // worker's own documents are relevant, before anything is generated.
+  // Deterministic metadata matching only (department/usedBy), not the
+  // vector/embeddings pipeline, so this stays instant and stable in Demo
+  // Mode. The picked document is always included; auto-discovered ones
+  // are additional context.
+  const relevantDocuments = getRelevantDocuments(config.workerId, WORKER_NAMES_BY_ID[config.workerId] ?? config.personaLabel)
+    .map((match) => match.document)
+    .filter((relevant) => relevant.id !== document.id);
+  const knowledgeSourcesUsed = [document.name, ...relevantDocuments.map((doc) => doc.name)];
+
+  const baseData = config.buildDeterministicBase(document, company, currentUser, relevantDocuments);
   const base = toResult(personaId, config, baseData, {
-    knowledgeSourcesUsed: [document.name],
+    knowledgeSourcesUsed,
     modelUsed: "Deterministic Template",
     source: "Demo Mode",
     generationTimeMs: 0,
@@ -347,6 +437,11 @@ export async function analyzeDocumentForWorker(
         ? `\nCurrent User: ${currentUser.name} (${currentUser.role}, ${currentUser.roleLevel})`
         : "";
 
+    const relevantDocumentsContext =
+      relevantDocuments.length > 0
+        ? `\nOther relevant company documents: ${relevantDocuments.map((doc) => `${doc.name} (${doc.category})`).join(", ")}`
+        : "";
+
     const response = await provider.chat(
       {
         model: provider.listModels()[0]?.id ?? "unknown",
@@ -354,7 +449,7 @@ export async function analyzeDocumentForWorker(
           { role: "system", content: config.systemPrompt },
           {
             role: "user",
-            content: `Document: ${document.name}\nDepartment: ${document.department}\nCategory: ${document.category}\nContent: ${document.description}${personalizationContext}`,
+            content: `Document: ${document.name}\nDepartment: ${document.department}\nCategory: ${document.category}\nContent: ${document.description}${relevantDocumentsContext}${personalizationContext}`,
           },
         ],
       },
@@ -374,7 +469,7 @@ export async function analyzeDocumentForWorker(
     }
 
     return toResult(personaId, config, parsed, {
-      knowledgeSourcesUsed: [document.name],
+      knowledgeSourcesUsed,
       modelUsed: response.model,
       source: "Live AI",
       generationTimeMs,
