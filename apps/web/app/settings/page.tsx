@@ -200,25 +200,27 @@ export default function SettingsPage() {
 
       <section>
         <SectionTitle
-          title="Company Mode"
-          description="Controls whether Digital Worker execution and deal-workflow actions (Run AI, approvals) require the current simulated user to hold the right role, or always succeed. On by default so the full Sales -> Manager -> Finance story can be walked without switching users."
+          title="Experience"
+          description="Choose which Company Data Provider powers AINEX. Enterprise Demo behaves exactly as today with realistic generated data. Live Company starts empty and only reflects what you actually add — no demo data is ever shown."
         />
         <div className="rounded-xl bg-slate-900 p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Current Mode</p>
+              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Current Experience</p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {demoModeEnabled ? "Demo Company Mode" : "Live Company Mode"}
+                {demoModeEnabled ? "🟢 Enterprise Demo" : "⚪ Live Company"}
               </p>
             </div>
-            <TagBadge label={demoModeEnabled ? "Demo Company" : "Live Company"} />
+            <TagBadge label={demoModeEnabled ? "Enterprise Demo" : "Live Company"} />
           </div>
 
           <p className="mt-4 text-sm text-slate-400">
             {demoModeEnabled
-              ? "Every Digital Worker's execution and every deal-workflow action (Run AI, advance, manager approve/reject, finance approve/reject) is executable by the current simulated user, without switching users. No permission notice is ever shown."
-              : "Digital Worker execution and deal-workflow actions require the current simulated user to hold the right role — the same permission architecture that ships in production, completely unchanged."}
+              ? "Every page shows a realistic, fully generated company — customers, deals, documents, and workflows are all deterministic demo data. Every Digital Worker's execution and every deal-workflow action is executable by the current simulated user without switching users."
+              : "Your Live Company starts empty. Nothing is generated — upload documents, invite employees, and add real business data to see it reflected everywhere. Digital Worker execution and deal-workflow actions require the current simulated user to hold the right role, the same permission architecture that ships in production."}
           </p>
+
+          <p className="mt-4 text-sm text-slate-400">Changing experience switches the active Company Data Provider.</p>
 
           <form action={setDemoCompanyMode} className="mt-6">
             <input type="hidden" name="enabled" value={demoModeEnabled ? "false" : "true"} />
@@ -230,7 +232,7 @@ export default function SettingsPage() {
                   : "rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               }
             >
-              {demoModeEnabled ? "Switch to Live Company Mode" : "Switch to Demo Company Mode"}
+              {demoModeEnabled ? "Switch to ⚪ Live Company" : "Switch to 🟢 Enterprise Demo"}
             </button>
           </form>
         </div>

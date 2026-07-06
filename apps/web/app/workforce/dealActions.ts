@@ -68,8 +68,8 @@ export async function runDealAi(formData: FormData): Promise<void> {
   const result = await runDealTouchpoint(touchpointId, deal, customer, company, currentUser);
   SalesDealStore.recordAiResult(dealId, touchpointId, result);
 
-  revalidatePath("/workforce/sales");
-  revalidatePath("/workforce/finance");
+  revalidatePath("/workforce/sales/workspace");
+  revalidatePath("/workforce/finance/workspace");
   revalidatePath("/dashboard");
 }
 
@@ -95,7 +95,7 @@ export async function advanceDeal(formData: FormData): Promise<void> {
   if (!stageConfig.nextStage) throw new Error("This deal has no next step available at its current stage.");
 
   SalesDealStore.advance(dealId, stageConfig.nextStage, stageConfig.nextStepLabel ?? "Advanced.");
-  revalidatePath("/workforce/sales");
+  revalidatePath("/workforce/sales/workspace");
 }
 
 type ManagerOutcome = "approve" | "reject" | "revise";
@@ -126,7 +126,7 @@ export async function managerDecision(formData: FormData): Promise<void> {
   }
 
   SalesDealStore.advance(dealId, MANAGER_OUTCOME_STAGE[outcome], `Manager ${outcome}d by ${currentUser.name}.`);
-  revalidatePath("/workforce/sales");
+  revalidatePath("/workforce/sales/workspace");
   revalidatePath("/dashboard");
 }
 
@@ -157,6 +157,6 @@ export async function financeDecision(formData: FormData): Promise<void> {
   }
 
   SalesDealStore.advance(dealId, FINANCE_OUTCOME_STAGE[outcome], `Finance ${outcome}d by ${currentUser.name}.`);
-  revalidatePath("/workforce/finance");
+  revalidatePath("/workforce/finance/workspace");
   revalidatePath("/dashboard");
 }

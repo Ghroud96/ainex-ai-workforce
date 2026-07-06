@@ -27,6 +27,7 @@ function synthesizeDigitalWorker(worker: WorkerInstance): DigitalWorker {
     businessDescription: definition.description,
     businessValue: definition.businessValue,
     purpose: definition.purpose,
+    successMetric: "Success metric not yet defined for this worker.",
     status: toLegacyStatus(definition.status),
     knowledgeSources: definition.knowledgeSources,
     workflows: definition.availableActions.map((action) => ({

@@ -1,5 +1,7 @@
 import { advanceDeal, financeDecision, managerDecision, runDealAi } from "@/app/workforce/dealActions";
+import DealStageStepper from "@/components/DealStageStepper";
 import TagBadge from "@/components/TagBadge";
+import { getTouchpointLabel } from "@/lib/sales/DealAiService";
 import { STAGE_CONFIG, type SalesDeal } from "@/lib/sales/SalesDealTypes";
 
 const STAGE_TONE: Record<string, string> = {
@@ -51,6 +53,10 @@ export default function WorkflowStepPanel({
         </span>
       </div>
 
+      <div className="mt-4">
+        <DealStageStepper stage={deal.stage} />
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
         <TagBadge label={`Current Step: ${stageConfig.label}`} />
         <TagBadge label={`Responsible: ${responsiblePerson}`} />
@@ -59,15 +65,17 @@ export default function WorkflowStepPanel({
       {result && (
         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">AI Analysis</p>
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              {getTouchpointLabel(result.touchpointId)}
+            </p>
             <p className="mt-1 text-sm text-slate-300">{result.aiAnalysis}</p>
           </div>
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Recommendation</p>
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Recommended Action</p>
             <p className="mt-1 text-sm text-slate-300">{result.businessRecommendation}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <TagBadge label={`Estimated Impact: ${result.estimatedBusinessImpact}`} />
+            <TagBadge label={`Business Impact: ${result.estimatedBusinessImpact}`} />
             <TagBadge label={`Confidence: ${result.confidence.label}`} />
             <TagBadge label={result.source} />
           </div>
@@ -82,7 +90,7 @@ export default function WorkflowStepPanel({
             </div>
           )}
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Suggested Next Action</p>
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Next Step</p>
             <p className="mt-1 text-sm text-slate-300">{result.suggestedNextAction}</p>
           </div>
         </div>

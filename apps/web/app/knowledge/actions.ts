@@ -7,6 +7,7 @@ import type { Department } from "@/data/departments";
 import { departments } from "@/data/departments";
 import type { DigitalDocument, FileType } from "@/data/documents";
 import { deriveUsedByForDepartment } from "@/lib/company-intelligence/WorkerKnowledgeMap";
+import { extractContent, inferFileType } from "@/lib/knowledge/documentUpload";
 import { resetCache } from "@/lib/services/knowledge/knowledgeHubBridge";
 import { UploadedDocumentStore } from "@/lib/knowledge/UploadedDocumentStore";
 
@@ -16,45 +17,6 @@ function isDepartment(value: FormDataEntryValue | null): value is Department {
 
 function isCategory(value: FormDataEntryValue | null): value is Category {
   return typeof value === "string" && (categories as readonly string[]).includes(value);
-}
-
-function inferFileType(file: File): FileType {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  switch (extension) {
-    case "pdf":
-      return "PDF";
-    case "docx":
-      return "DOCX";
-    case "doc":
-      return "DOC";
-    case "xlsx":
-      return "XLSX";
-    case "csv":
-      return "CSV";
-    case "txt":
-      return "TXT";
-    case "pptx":
-      return "PPTX";
-    case "png":
-    case "jpg":
-    case "jpeg":
-      return "Image";
-    default:
-      return "TXT";
-  }
-}
-
-// The one place a real upload becomes real content: a .txt file's actual
-// text is read directly (Document.content, consumed by lib/parser/parsers.ts,
-// already uses this verbatim when present — no parser change needed). Every
-// other file type gets an honest placeholder instead of pretending to have
-// extracted it, matching this codebase's consistent honesty-labeling
-// convention (see e.g. app/integrations/page.tsx, app/dashboard/page.tsx).
-async function extractContent(file: File, fileType: FileType): Promise<string> {
-  if (fileType === "TXT") {
-    return file.text();
-  }
-  return `Real text extraction is not yet implemented for ${fileType} uploads — this document is indexed by its metadata only.`;
 }
 
 export async function uploadDocument(formData: FormData): Promise<void> {

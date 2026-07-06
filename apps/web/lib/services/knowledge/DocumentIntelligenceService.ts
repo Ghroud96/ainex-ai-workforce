@@ -1,7 +1,10 @@
+import { categories, type Category } from "@/data/categories";
+import { departments, type Department } from "@/data/departments";
 import type { DigitalDocument } from "@/data/documents";
 import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { createProviderContext } from "@/lib/llm/ProviderContext";
 import { ProviderRegistry } from "@/lib/llm/ProviderRegistry";
+import type { ConfidenceScore } from "@/lib/reasoning/ReasoningTypes";
 
 export interface DocumentIntelligence {
   executiveSummary: string;
@@ -10,10 +13,25 @@ export interface DocumentIntelligence {
   businessOpportunities: string[];
   recommendedActions: string[];
   executiveConclusion: string;
+  suggestedCategory: Category;
+  suggestedDepartment: Department;
+  confidence: ConfidenceScore;
+  knowledgeTags: string[];
   knowledgeSourcesUsed: string[];
   modelUsed: string;
   source: "Demo Mode" | "Live AI";
   generationTimeMs: number;
+}
+
+const DEPARTMENT_SET = new Set<string>(departments.filter((department): department is Department => department !== "All Departments"));
+const CATEGORY_SET = new Set<string>(categories);
+
+function resolveDepartment(value: string, fallback: Department): Department {
+  return DEPARTMENT_SET.has(value) ? (value as Department) : fallback;
+}
+
+function resolveCategory(value: string, fallback: Category): Category {
+  return CATEGORY_SET.has(value) ? (value as Category) : fallback;
 }
 
 const RECOMMENDED_ACTION_BY_CATEGORY: Record<string, string> = {
@@ -75,6 +93,14 @@ function buildDeterministicIntelligence(document: DigitalDocument): DocumentInte
     businessOpportunities,
     recommendedActions,
     executiveConclusion,
+    suggestedCategory: document.category,
+    suggestedDepartment: document.department,
+    confidence: {
+      value: 1,
+      label: "High",
+      basis: "Deterministic — this document's category and department are already known, not inferred.",
+    },
+    knowledgeTags: document.tags.length > 0 ? document.tags : [document.category, document.department],
     knowledgeSourcesUsed: [document.name],
     modelUsed: "Deterministic Template",
     source: "Demo Mode",
@@ -89,6 +115,11 @@ interface ParsedIntelligence {
   businessOpportunities: string[];
   recommendedActions: string[];
   executiveConclusion: string;
+  suggestedDepartment: string;
+  suggestedCategory: string;
+  confidenceValue: number;
+  confidenceBasis: string;
+  knowledgeTags: string[];
 }
 
 // A model wrapping its JSON in a ```json fence despite instructions not to
@@ -118,7 +149,12 @@ function isValidIntelligenceShape(value: unknown): value is ParsedIntelligence {
     isStringArray(candidate.businessRisks) &&
     isStringArray(candidate.businessOpportunities) &&
     isStringArray(candidate.recommendedActions) &&
-    typeof candidate.executiveConclusion === "string"
+    typeof candidate.executiveConclusion === "string" &&
+    typeof candidate.suggestedDepartment === "string" &&
+    typeof candidate.suggestedCategory === "string" &&
+    typeof candidate.confidenceValue === "number" &&
+    typeof candidate.confidenceBasis === "string" &&
+    isStringArray(candidate.knowledgeTags)
   );
 }
 
@@ -129,11 +165,15 @@ function isValidIntelligenceShape(value: unknown): value is ParsedIntelligence {
 // is off (the default) or when anything below fails; the try/catch is the
 // only thing standing between a provider hiccup and a broken page, so it
 // wraps the entire AI path, not just the network call.
-export async function summarizeDocument(document: DigitalDocument): Promise<DocumentIntelligence> {
+export async function summarizeDocument(
+  document: DigitalDocument,
+  options?: { forceLiveAi?: boolean },
+): Promise<DocumentIntelligence> {
   const base = buildDeterministicIntelligence(document);
+  const forceLiveAi = options?.forceLiveAi ?? false;
 
   const provider = ProviderRegistry.getActive();
-  if (!AiModeStore.isLiveModeEnabled() || provider?.id !== "openai") {
+  if ((!AiModeStore.isLiveModeEnabled() && !forceLiveAi) || provider?.id !== "openai") {
     return base;
   }
 
@@ -147,7 +187,7 @@ export async function summarizeDocument(document: DigitalDocument): Promise<Docu
           {
             role: "system",
             content:
-              'You are the Executive Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary, no text before or after it. The object must have exactly these keys: "executiveSummary" (string, 2-3 sentences), "keyFindings" (array of strings), "businessRisks" (array of strings), "businessOpportunities" (array of strings), "recommendedActions" (array of strings), "executiveConclusion" (string, 1-2 sentences).',
+              'You are the Executive Worker for an enterprise Digital Workforce platform. Read the document and respond with ONLY a valid JSON object — no markdown code fences, no commentary, no text before or after it. The object must have exactly these keys: "executiveSummary" (string, 2-3 sentences), "keyFindings" (array of strings), "businessRisks" (array of strings), "businessOpportunities" (array of strings), "recommendedActions" (array of strings), "executiveConclusion" (string, 1-2 sentences), "suggestedDepartment" (string — choose exactly one of: "Executive", "Finance", "Sales", "HR", "Operations", "Warehouse", "Customer Support", "Marketing", "IT"), "suggestedCategory" (string — choose exactly one of: "Policies", "SOP", "Finance", "Sales", "HR", "Operations", "Legal", "Contracts", "Inventory", "Training", "Marketing", "Customer Service", "Engineering", "Administration"), "confidenceValue" (number from 0 to 1, how confident you are in this classification), "confidenceBasis" (string, one short sentence explaining why), "knowledgeTags" (array of 2-5 short strings, key topics/terms from the document).',
           },
           {
             role: "user",
@@ -155,7 +195,7 @@ export async function summarizeDocument(document: DigitalDocument): Promise<Docu
           },
         ],
       },
-      createProviderContext({ workerId: "executive" }),
+      createProviderContext({ workerId: "executive", forceLiveAi }),
     );
 
     const generationTimeMs = Date.now() - startedAt;
@@ -174,6 +214,8 @@ export async function summarizeDocument(document: DigitalDocument): Promise<Docu
       return base;
     }
 
+    const confidenceValue = Math.min(1, Math.max(0, parsed.confidenceValue));
+
     return {
       executiveSummary: parsed.executiveSummary,
       keyFindings: parsed.keyFindings,
@@ -181,6 +223,14 @@ export async function summarizeDocument(document: DigitalDocument): Promise<Docu
       businessOpportunities: parsed.businessOpportunities,
       recommendedActions: parsed.recommendedActions,
       executiveConclusion: parsed.executiveConclusion,
+      suggestedDepartment: resolveDepartment(parsed.suggestedDepartment, document.department),
+      suggestedCategory: resolveCategory(parsed.suggestedCategory, document.category),
+      confidence: {
+        value: confidenceValue,
+        label: confidenceValue >= 0.7 ? "High" : confidenceValue >= 0.4 ? "Medium" : "Low",
+        basis: parsed.confidenceBasis,
+      },
+      knowledgeTags: parsed.knowledgeTags,
       knowledgeSourcesUsed: [document.name],
       modelUsed: response.model,
       source: "Live AI",

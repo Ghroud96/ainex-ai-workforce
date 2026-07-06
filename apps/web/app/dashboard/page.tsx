@@ -13,7 +13,9 @@ import {
   enrichBusinessEvent,
   enrichKpi,
 } from "@/lib/enterprise/BusinessInsights";
+import LiveOnboardingBanner from "@/components/LiveOnboardingBanner";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { buildSimulatedEventFeed } from "@/lib/enterprise/LiveSimulationBuilder";
 import {
@@ -60,6 +62,10 @@ export default function DashboardPage() {
   ).length;
   const dealsConfirmed = deals.filter((deal) => deal.stage === "confirmed").length;
   const intelligence = buildCompanyIntelligenceOverview();
+  // A freshly empty Live Company (no employees invited yet) is the signal
+  // for the onboarding banner — the same "is this company actually empty"
+  // check used throughout this page for the KPI/tile empty-state values.
+  const isFreshLiveCompany = !CompanyModeStore.isDemoModeEnabled() && company.enterpriseUsers.length === 0;
 
   return (
     <>
@@ -67,6 +73,12 @@ export default function DashboardPage() {
         title="Executive Intelligence"
         description={`${profile.name} · ${profile.industry} · ${profile.size} — your Digital Workforce's live view of company health, already working before you opened this page.`}
       />
+
+      {isFreshLiveCompany && (
+        <div className="mt-6">
+          <LiveOnboardingBanner />
+        </div>
+      )}
 
       {/* Morning Executive Brief — the hero: everything a CEO needs in the
           first 60 seconds, read like a briefing prepared by an executive
@@ -149,8 +161,8 @@ export default function DashboardPage() {
           description="Live status of the connected Sales -> Manager -> Finance workflow — updates automatically, no AI involved."
         />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <KpiCard title="Orders Pending Approval" value={dealsPendingApproval.toString()} />
-          <KpiCard title="Orders Confirmed" value={dealsConfirmed.toString()} />
+          <KpiCard title="Orders Pending Approval" value={deals.length === 0 ? "No active deals" : dealsPendingApproval.toString()} />
+          <KpiCard title="Orders Confirmed" value={deals.length === 0 ? "No active deals" : dealsConfirmed.toString()} />
         </div>
       </section>
 
@@ -160,10 +172,21 @@ export default function DashboardPage() {
           description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on — deterministic, no AI involved."
         />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Knowledge Coverage" value={`${intelligence.coverageScore}/100`} />
-          <KpiCard title="Documents Uploaded" value={String(intelligence.totalDocuments)} />
+          <KpiCard title="Knowledge Coverage" value={intelligence.totalDocuments === 0 ? "No data yet" : `${intelligence.coverageScore}/100`} />
+          <KpiCard title="Documents Uploaded" value={intelligence.totalDocuments === 0 ? "No documents uploaded" : String(intelligence.totalDocuments)} />
           <KpiCard title="Departments Ready" value={`${intelligence.knowledgeReadyDepartments.length} of ${intelligence.departmentCoverage.length}`} />
           <KpiCard title="Recently Added" value={String(intelligence.recentlyUploaded.length)} />
+        </div>
+      </section>
+
+      <section className="mt-10 rounded-xl bg-slate-900 p-8">
+        <SectionTitle
+          title="Teach AINEX about your company"
+          description="Prove it to yourself — upload one real document and see AINEX understand it instantly."
+        />
+        <TeachAinexWizard />
+        <div className="mt-4">
+          <TeachAinexSessionStats />
         </div>
       </section>
 
@@ -184,17 +207,23 @@ export default function DashboardPage() {
           title="Cross-Department Collaboration"
           description="A live example of the Digital Workforce solving a problem together, this morning."
         />
-        <div className="rounded-xl bg-slate-900 p-6">
-          <ActivityTimeline
-            entries={collaboration.map((step) => ({
-              time: step.time,
-              title: step.workerName,
-              subtitle: step.roleTitle,
-              description: step.message,
-              accent: step.workerId === "workflow" ? "workflow" : "default",
-            }))}
-          />
-        </div>
+        {collaboration.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            No collaboration activity yet — invite employees and add customers to see the Digital Workforce work together.
+          </p>
+        ) : (
+          <div className="rounded-xl bg-slate-900 p-6">
+            <ActivityTimeline
+              entries={collaboration.map((step) => ({
+                time: step.time,
+                title: step.workerName,
+                subtitle: step.roleTitle,
+                description: step.message,
+                accent: step.workerId === "workflow" ? "workflow" : "default",
+              }))}
+            />
+          </div>
+        )}
       </section>
 
       <section className="mt-10">

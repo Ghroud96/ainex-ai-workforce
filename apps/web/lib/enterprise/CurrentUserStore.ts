@@ -38,12 +38,36 @@ const globalWithStore = globalThis as GlobalWithStore;
 export const CurrentUserStore: CurrentUserStoreImpl =
   globalWithStore[GLOBAL_KEY] ?? (globalWithStore[GLOBAL_KEY] = new CurrentUserStoreImpl());
 
+// The one implicit person using AINEX before a Live Company has invited
+// anyone — a brand-new Live Company still has an account holder, and
+// Executive-tier access is the only correct default for someone who
+// hasn't yet defined any roles. Exported because app/layout.tsx needs the
+// same fallback identity for the UserSwitcher dropdown's option list.
+export const FALLBACK_OWNER: EnterpriseUser = {
+  id: "owner",
+  name: "You",
+  departmentWorkerId: "executive",
+  role: "Owner",
+  roleLevel: "Executive",
+  region: "",
+  managerName: null,
+  status: "Active",
+  assignedCustomerIds: [],
+  assignedTasks: [],
+  assignedMeetings: [],
+  assignedApprovals: [],
+};
+
 // Resolves the current user against whichever company is active right
 // now — self-healing fallback to the first generated user whenever the
 // stored id doesn't match (e.g. right after a company regeneration, before
-// CurrentUserStore.clear() would otherwise take effect). Defense-in-depth
-// alongside the explicit clear() call in CompanyProfileStore.setSelection().
+// CurrentUserStore.clear() would otherwise take effect), and to
+// FALLBACK_OWNER when the active company has no users at all (a freshly
+// empty Live Company). Return type stays non-nullable EnterpriseUser on
+// purpose — every one of this function's existing callers already assumes
+// a real user.
 export function resolveCurrentUser(company: GeneratedCompany): EnterpriseUser {
+  if (company.enterpriseUsers.length === 0) return FALLBACK_OWNER;
   const storedId = CurrentUserStore.getCurrentUserId();
   return company.enterpriseUsers.find((user) => user.id === storedId) ?? company.enterpriseUsers[0];
 }

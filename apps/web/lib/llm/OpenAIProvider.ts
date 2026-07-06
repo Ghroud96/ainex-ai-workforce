@@ -84,7 +84,7 @@ export class OpenAIProvider implements LLMProvider {
   async chat(request: ProviderChatRequest, context?: ProviderContext): Promise<ProviderResponse> {
     const model = request.model && request.model !== "unknown" ? request.model : this.config?.defaultModel ?? DEFAULT_MODEL;
 
-    if (!AiModeStore.isLiveModeEnabled()) {
+    if (!AiModeStore.isLiveModeEnabled() && !context?.forceLiveAi) {
       return demoModeResponse(model);
     }
 

@@ -4,6 +4,8 @@ import ModuleCard from "@/components/ModuleCard";
 import PageHeader from "@/components/PageHeader";
 import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
+import TeachAinexSessionStats from "@/components/TeachAinexSessionStats";
+import TeachAinexWizard from "@/components/TeachAinexWizard";
 import { getAllDocuments, formatFileSize, type DigitalDocument } from "@/data/documents";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
 import { getKnowledgePipelineSummary } from "@/lib/services/knowledge/knowledgeHubBridge";
@@ -76,6 +78,17 @@ export default async function KnowledgePage() {
         description="The Knowledge Hub is the brain of the Digital Workforce. Every document here is a source every Digital Worker will eventually draw on to answer with company-specific context instead of general knowledge."
       />
 
+      <section className="rounded-xl bg-slate-900 p-8">
+        <SectionTitle
+          title="Teach AINEX about your company"
+          description="Upload one of your own documents and watch AINEX learn from it with real, live AI — right inside this demo."
+        />
+        <TeachAinexWizard />
+        <div className="mt-4">
+          <TeachAinexSessionStats />
+        </div>
+      </section>
+
       <SectionTitle title="Knowledge Overview" />
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <KnowledgeStatCard title="Total Documents" value={String(totalDocuments)} />
@@ -83,8 +96,8 @@ export default async function KnowledgePage() {
         <KnowledgeStatCard title="Storage Used" value={formatFileSize(totalSizeKb)} />
         <KnowledgeStatCard
           title="Latest Upload"
-          value={latestDocument.name}
-          hint={latestDocument.uploadDate}
+          value={latestDocument ? latestDocument.name : "No documents yet"}
+          hint={latestDocument ? latestDocument.uploadDate : undefined}
         />
         <KnowledgeStatCard title="Indexed Documents" value={String(indexedCount)} />
         <KnowledgeStatCard title="Pending Processing" value={String(pendingCount)} />
@@ -134,6 +147,12 @@ export default async function KnowledgePage() {
             </div>
           </div>
         </div>
+
+        {intelligence.totalDocuments === 0 && (
+          <p className="mt-4 rounded-lg bg-slate-800/60 p-4 text-sm text-slate-400">
+            Upload company documents to build Company Intelligence.
+          </p>
+        )}
       </div>
 
       <div className="mt-10">
@@ -154,12 +173,16 @@ export default async function KnowledgePage() {
       <div className="mt-10">
         <SectionTitle title="Recent Activity" />
         <div className="space-y-3 rounded-xl bg-slate-900 p-6">
-          {recentActivity.map((document) => (
-            <p key={document.id} className="text-sm text-slate-300">
-              <span className="font-medium text-white">{document.name}</span>{" "}
-              {activityLabel(document)} on {document.uploadDate}
-            </p>
-          ))}
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-slate-500">No document activity yet.</p>
+          ) : (
+            recentActivity.map((document) => (
+              <p key={document.id} className="text-sm text-slate-300">
+                <span className="font-medium text-white">{document.name}</span>{" "}
+                {activityLabel(document)} on {document.uploadDate}
+              </p>
+            ))
+          )}
         </div>
       </div>
 

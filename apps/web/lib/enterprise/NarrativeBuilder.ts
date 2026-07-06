@@ -76,21 +76,28 @@ export function buildExecutiveKpis(company: GeneratedCompany): KpiValue[] {
   // keeps every KPI card's trend traceable to the two inputs a Director
   // could ask about directly.
   const netIncomeTrendPct = Math.round((financials.revenueTrendPct - financials.expenseTrendPct) * 10) / 10;
+  // A freshly empty Live Company has real zeros, not "$0" worth reporting —
+  // this distinguishes "no financial activity yet" from a demo company that
+  // legitimately has zero revenue this quarter (which doesn't happen today,
+  // but the distinction matters going forward).
+  const hasFinancialData = financials.revenue > 0 || company.salesOrders.length > 0;
 
   return [
     {
       title: "Quarterly Revenue",
-      value: formatCurrency(financials.revenue, profile.currency),
-      trend: { value: financials.revenueTrendPct, direction: trendDirection(financials.revenueTrendPct) },
+      value: hasFinancialData ? formatCurrency(financials.revenue, profile.currency) : "No data yet",
+      ...(hasFinancialData
+        ? { trend: { value: financials.revenueTrendPct, direction: trendDirection(financials.revenueTrendPct) } }
+        : {}),
     },
     {
       title: "Net Income",
-      value: formatCurrency(financials.netIncome, profile.currency),
-      trend: { value: netIncomeTrendPct, direction: trendDirection(netIncomeTrendPct) },
+      value: hasFinancialData ? formatCurrency(financials.netIncome, profile.currency) : "No data yet",
+      ...(hasFinancialData ? { trend: { value: netIncomeTrendPct, direction: trendDirection(netIncomeTrendPct) } } : {}),
     },
     {
       title: "Cash on Hand",
-      value: formatCurrency(financials.cashOnHand, profile.currency),
+      value: hasFinancialData ? formatCurrency(financials.cashOnHand, profile.currency) : "No data yet",
     },
     {
       // No trend badge here — KpiCard's trend indicator always renders as
@@ -296,6 +303,12 @@ export function buildWorkforceActivityFeed(company: GeneratedCompany, limit?: nu
 // grounded in the same generated entities as everything else, not an
 // implied side effect of the architecture.
 export function buildCollaborationChain(company: GeneratedCompany): CollaborationStep[] {
+  // A Live Company with no customers/products yet has nothing to build this
+  // story around — every other Dashboard section already renders its own
+  // "nothing yet" state; this one does the same instead of crashing on an
+  // rng.pick() over an empty array.
+  if (company.customers.length === 0 || company.products.length === 0) return [];
+
   const rng = createRng(`${company.profile.id}::collaboration`);
   const atRiskCustomers = getAtRiskCustomers(company);
   const customer = atRiskCustomers[0] ?? rng.pick(company.customers);

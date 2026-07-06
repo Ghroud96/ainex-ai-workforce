@@ -55,5 +55,5 @@ export async function analyzeDocumentAsWorker(formData: FormData): Promise<void>
   const result = await analyzeDocumentForWorker(personaId, document, company, currentUser);
 
   WorkerAnalysisResultStore.set(personaId, result);
-  revalidatePath(`/workforce/${workerId}`);
+  revalidatePath(`/workforce/${workerId}/workspace`);
 }

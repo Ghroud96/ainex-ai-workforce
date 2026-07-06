@@ -1,5 +1,5 @@
 import { resetCache } from "@/lib/services/knowledge/knowledgeHubBridge";
-import { generateCompany } from "@/lib/enterprise/CompanyGenerator";
+import { DemoCompanyProvider, getActiveCompanyDataProvider } from "@/lib/enterprise/CompanyDataProvider";
 import type { CompanySize, GeneratedCompany, Industry } from "@/lib/enterprise/EnterpriseTypes";
 
 const DEFAULT_INDUSTRY: Industry = "Retail";
@@ -22,7 +22,7 @@ class CompanyProfileStoreImpl {
   private selection: CompanySelection;
 
   constructor() {
-    this.selection = { industry: DEFAULT_INDUSTRY, size: DEFAULT_SIZE, company: generateCompany(DEFAULT_INDUSTRY, DEFAULT_SIZE) };
+    this.selection = { industry: DEFAULT_INDUSTRY, size: DEFAULT_SIZE, company: DemoCompanyProvider.getCompany(DEFAULT_INDUSTRY, DEFAULT_SIZE) };
   }
 
   getCurrent(): CompanySelection {
@@ -47,8 +47,14 @@ class CompanyProfileStoreImpl {
   // import to call time (long after the module graph has settled, since
   // setSelection() only ever runs from a user-triggered Server Action)
   // avoids it entirely.
+  // The one path that changes company data — used both when the Scenario
+  // Generator picks a new industry/size AND when the Experience toggle
+  // switches providers (refreshActiveProvider below just re-calls this with
+  // the currently selected industry/size). Always asks the CURRENTLY active
+  // provider, never generateCompany() directly — so touching the Scenario
+  // Generator while Live is active can never silently inject demo data.
   async setSelection(industry: Industry, size: CompanySize): Promise<CompanySelection> {
-    const company = generateCompany(industry, size);
+    const company = getActiveCompanyDataProvider().getCompany(industry, size);
     this.selection = { industry, size, company };
 
     const [{ WorkerRegistry }, { buildWorkforceRoster }] = await Promise.all([
@@ -74,6 +80,14 @@ class CompanyProfileStoreImpl {
     CurrentUserStore.clear();
 
     return this.selection;
+  }
+
+  // Called after the Experience toggle flips CompanyModeStore — rebuilds
+  // the company from whichever provider just became active, keeping the
+  // currently selected industry/size (switching Experience shouldn't also
+  // reset an operator's chosen industry/size).
+  async refreshActiveProvider(): Promise<CompanySelection> {
+    return this.setSelection(this.selection.industry, this.selection.size);
   }
 }
 
