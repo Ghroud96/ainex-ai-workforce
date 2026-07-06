@@ -3,7 +3,9 @@ import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
 import { updateCompanyProfile } from "@/app/settings/actions";
 import { setLiveAiMode } from "@/app/settings/aiActions";
+import { setDemoCompanyMode } from "@/app/settings/companyModeActions";
 import { buildCompanyStory } from "@/lib/enterprise/BusinessInsights";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { COMPANY_SIZES } from "@/lib/enterprise/CompanySizeTiers";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { formatCurrency } from "@/lib/enterprise/CompanyGenerator";
@@ -15,6 +17,7 @@ export default function SettingsPage() {
   const { profile } = company;
   const story = buildCompanyStory(company);
   const liveAiEnabled = AiModeStore.isLiveModeEnabled();
+  const demoModeEnabled = CompanyModeStore.isDemoModeEnabled();
 
   return (
     <>
@@ -190,6 +193,44 @@ export default function SettingsPage() {
               }
             >
               {liveAiEnabled ? "Disable Live AI" : "Enable Live AI"}
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section>
+        <SectionTitle
+          title="Company Mode"
+          description="Controls whether Digital Worker execution and deal-workflow actions (Run AI, approvals) require the current simulated user to hold the right role, or always succeed. On by default so the full Sales -> Manager -> Finance story can be walked without switching users."
+        />
+        <div className="rounded-xl bg-slate-900 p-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Current Mode</p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {demoModeEnabled ? "Demo Company Mode" : "Live Company Mode"}
+              </p>
+            </div>
+            <TagBadge label={demoModeEnabled ? "Demo Company" : "Live Company"} />
+          </div>
+
+          <p className="mt-4 text-sm text-slate-400">
+            {demoModeEnabled
+              ? "Every Digital Worker's execution and every deal-workflow action (Run AI, advance, manager approve/reject, finance approve/reject) is executable by the current simulated user, without switching users. No permission notice is ever shown."
+              : "Digital Worker execution and deal-workflow actions require the current simulated user to hold the right role — the same permission architecture that ships in production, completely unchanged."}
+          </p>
+
+          <form action={setDemoCompanyMode} className="mt-6">
+            <input type="hidden" name="enabled" value={demoModeEnabled ? "false" : "true"} />
+            <button
+              type="submit"
+              className={
+                demoModeEnabled
+                  ? "rounded-lg bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700"
+                  : "rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+              }
+            >
+              {demoModeEnabled ? "Switch to Live Company Mode" : "Switch to Demo Company Mode"}
             </button>
           </form>
         </div>

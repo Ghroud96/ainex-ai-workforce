@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
 import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
@@ -51,11 +52,11 @@ export async function runDealAi(formData: FormData): Promise<void> {
   }
 
   const authorized =
-    stageConfig.responsibleRole === "Sales Manager"
+    (stageConfig.responsibleRole === "Sales Manager"
       ? isSalesManager(currentUser)
       : stageConfig.responsibleRole === "Finance"
         ? isFinanceUser(currentUser)
-        : isDealOwner(currentUser, deal.ownerUserId);
+        : isDealOwner(currentUser, deal.ownerUserId)) || CompanyModeStore.isDemoModeEnabled();
   if (!authorized) {
     throw new Error("You do not have permission to execute this Digital Worker.");
   }
@@ -85,7 +86,8 @@ export async function advanceDeal(formData: FormData): Promise<void> {
 
   const { company } = CompanyProfileStore.getCurrent();
   const currentUser = resolveCurrentUser(company);
-  if (!isDealOwner(currentUser, deal.ownerUserId)) {
+  const authorized = isDealOwner(currentUser, deal.ownerUserId) || CompanyModeStore.isDemoModeEnabled();
+  if (!authorized) {
     throw new Error("You do not have permission to execute this Digital Worker.");
   }
 
@@ -115,7 +117,8 @@ export async function managerDecision(formData: FormData): Promise<void> {
 
   const { company } = CompanyProfileStore.getCurrent();
   const currentUser = resolveCurrentUser(company);
-  if (!isSalesManager(currentUser)) {
+  const authorized = isSalesManager(currentUser) || CompanyModeStore.isDemoModeEnabled();
+  if (!authorized) {
     throw new Error("You do not have permission to execute this Digital Worker.");
   }
   if (deal.stage !== "pending-manager-approval") {
@@ -145,7 +148,8 @@ export async function financeDecision(formData: FormData): Promise<void> {
 
   const { company } = CompanyProfileStore.getCurrent();
   const currentUser = resolveCurrentUser(company);
-  if (!isFinanceUser(currentUser)) {
+  const authorized = isFinanceUser(currentUser) || CompanyModeStore.isDemoModeEnabled();
+  if (!authorized) {
     throw new Error("You do not have permission to execute this Digital Worker.");
   }
   if (deal.stage !== "pending-finance-review") {

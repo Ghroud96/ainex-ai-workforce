@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import ChatPanel from "@/components/ChatPanel";
 import DocumentCard from "@/components/DocumentCard";
 import KnowledgeCard from "@/components/KnowledgeCard";
+import KpiCard from "@/components/KpiCard";
 import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
@@ -14,6 +15,7 @@ import { analyzeDocumentAsWorker } from "@/app/workforce/aiActions";
 import { getAllDocuments, type DigitalDocument } from "@/data/documents";
 import { getAllWorkers } from "@/data/workers";
 import { enrichWorkflowRun } from "@/lib/enterprise/BusinessInsights";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
 import { canAccessWorker, type DepartmentWorkerId } from "@/lib/enterprise/EnterpriseUserTypes";
@@ -70,10 +72,15 @@ export default async function WorkerDetailPage({
   // Worker's overview/Purpose/Today's Work/etc. below, unchanged) — this
   // only gates whether the Worker AI Analysis section further down can
   // actually be executed by the current simulated user.
-  const hasExecuteAccess = canAccessWorker(currentUser, workerInstance.id as DepartmentWorkerId);
+  const hasExecuteAccess =
+    canAccessWorker(currentUser, workerInstance.id as DepartmentWorkerId) || CompanyModeStore.isDemoModeEnabled();
 
   // Enterprise Demo V1 — the connected Sales -> Manager -> Finance story.
-  const isSalesManager = currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff";
+  // In Demo Company Mode, the current simulated user can act at every
+  // stage of that story without switching users — see CompanyModeStore.ts.
+  const isSalesManager =
+    (currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff") ||
+    CompanyModeStore.isDemoModeEnabled();
   const priorityCustomers = workerInstance.id === "sales" ? rankPriorityCustomers(company, currentUser) : [];
   const allDeals = workerInstance.id === "sales" || workerInstance.id === "finance" ? SalesDealStore.listFor(company) : [];
   const myDeals = workerInstance.id === "sales" ? allDeals.filter((deal) => deal.ownerUserId === currentUser.id) : [];
@@ -81,6 +88,20 @@ export default async function WorkerDetailPage({
     ? allDeals.filter((deal) => deal.stage === "pending-manager-approval")
     : [];
   const dealsAwaitingFinance = workerInstance.id === "finance" ? allDeals.filter((deal) => deal.stage === "pending-finance-review") : [];
+
+  // Sales Workspace home-screen summary — "what do I need to work on
+  // today," computed from data already derived above. Zero AI, orthogonal
+  // to Company Mode (read-only counts, not gated actions).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const urgentCustomerCount = priorityCustomers.filter(
+    (row) => row.priority === "Critical" || row.priority === "High",
+  ).length;
+  const customersNeedingFollowUp = myDeals.filter((deal) => deal.stage === "follow-up-needed").length;
+  const meetingsToday = currentUser.assignedMeetings.filter((meeting) => meeting.date === todayIso).length;
+  const pendingQuotations = myDeals.filter((deal) => deal.stage === "quotation-drafted").length;
+  const pendingSalesOrders = myDeals.filter((deal) =>
+    ["order-drafted", "pending-manager-approval", "revision-requested", "pending-finance-review"].includes(deal.stage),
+  ).length;
 
   const todaysActivity = buildTodaysActivity(workerInstance.id, company);
   const collaborationStep = buildCollaborationChain(company).find((step) => step.workerId === workerInstance.id);
@@ -490,6 +511,20 @@ export default async function WorkerDetailPage({
         <>
           <section>
             <SectionTitle
+              title="Today's Priorities"
+              description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
+            />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+              <KpiCard title="Priority Customers" value={urgentCustomerCount.toString()} />
+              <KpiCard title="Customers Requiring Follow-up" value={customersNeedingFollowUp.toString()} />
+              <KpiCard title="Meetings Today" value={meetingsToday.toString()} />
+              <KpiCard title="Pending Quotations" value={pendingQuotations.toString()} />
+              <KpiCard title="Pending Sales Orders" value={pendingSalesOrders.toString()} />
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle
               title="Business Monitor"
               description="Who should I follow up today? Ranked automatically from real account data — no AI involved."
             />
@@ -539,8 +574,13 @@ export default async function WorkerDetailPage({
                       ownerName={owner?.name ?? "Unknown"}
                       // A rep still sees their own deal once it's with the
                       // Manager or Finance (tracking progress), but can't
-                      // act on it — that's not their stage anymore.
-                      canAct={deal.ownerUserId === currentUser.id && STAGE_CONFIG[deal.stage].responsibleRole === "Sales Rep"}
+                      // act on it — that's not their stage anymore. In Demo
+                      // Company Mode this restriction is bypassed so the
+                      // whole story can be walked without switching users.
+                      canAct={
+                        (deal.ownerUserId === currentUser.id && STAGE_CONFIG[deal.stage].responsibleRole === "Sales Rep") ||
+                        CompanyModeStore.isDemoModeEnabled()
+                      }
                     />
                   );
                 })}

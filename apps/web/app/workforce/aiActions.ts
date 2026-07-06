@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getDocumentById } from "@/data/documents";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
 import { canAccessWorker, WORKER_IDS, type DepartmentWorkerId } from "@/lib/enterprise/EnterpriseUserTypes";
@@ -47,7 +48,7 @@ export async function analyzeDocumentAsWorker(formData: FormData): Promise<void>
   // Server-side enforcement backstop — the UI already hides the Analyze
   // form for a disallowed user, but this Server Action is the real trust
   // boundary, so execution is blocked here too, not just hidden client-side.
-  if (isDepartmentWorkerId(workerId) && !canAccessWorker(currentUser, workerId)) {
+  if (isDepartmentWorkerId(workerId) && !canAccessWorker(currentUser, workerId) && !CompanyModeStore.isDemoModeEnabled()) {
     throw new Error("You do not have permission to execute this Digital Worker.");
   }
 
