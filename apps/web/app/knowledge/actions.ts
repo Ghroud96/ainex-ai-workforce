@@ -5,7 +5,7 @@ import type { Category } from "@/data/categories";
 import { categories } from "@/data/categories";
 import type { Department } from "@/data/departments";
 import { departments } from "@/data/departments";
-import type { DigitalDocument, FileType } from "@/data/documents";
+import type { DigitalDocument } from "@/data/documents";
 import { deriveUsedByForDepartment } from "@/lib/company-intelligence/WorkerKnowledgeMap";
 import { extractContent, inferFileType } from "@/lib/knowledge/documentUpload";
 import { resetCache } from "@/lib/services/knowledge/knowledgeHubBridge";

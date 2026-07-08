@@ -6,6 +6,8 @@ import PageHeader from "@/components/PageHeader";
 import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
+import TeachAinexSessionStats from "@/components/TeachAinexSessionStats";
+import TeachAinexWizard from "@/components/TeachAinexWizard";
 import WorkflowCard from "@/components/WorkflowCard";
 import {
   buildRecommendedActions,

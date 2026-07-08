@@ -1,4 +1,9 @@
 import type { WorkflowRun } from "@/lib/workflow/WorkflowTypes";
+import { workflows } from "@/data/workflows";
+import { decideStepIntelligence } from "@/lib/workflow/ai/AiDecisionGate";
+import { buildAiUsageRecord } from "@/lib/workflow/ai/AiUsageTracker";
+import { buildWorkflowAuditEntry } from "@/lib/workflow/run/WorkflowRunAuditLog";
+import { buildWorkflowRunMetrics } from "@/lib/workflow/run/WorkflowRunMetrics";
 
 // Seed history so Run History / Failed Runs / Approval Required have
 // real (mock) content to show on first load, the same reasoning
@@ -62,10 +67,92 @@ const SEED_RUNS: WorkflowRun[] = [
   },
 ];
 
+function enrichSeedRun(run: WorkflowRun): WorkflowRun {
+  const workflow = workflows.find((item) => item.id === run.workflowId);
+  if (!workflow) return run;
+
+  const aiUsage = workflow.steps.map((step) =>
+    buildAiUsageRecord(
+      run.id,
+      decideStepIntelligence({ step, workflowRequiresApproval: workflow.requiresApproval, approved: run.status !== "Requires Approval" }),
+    ),
+  );
+  const stepResults = run.stepResults.map((result) => {
+    const usage = aiUsage.find((record) => record.stepId === result.stepId);
+    const step = workflow.steps.find((item) => item.id === result.stepId);
+    const decision = step
+      ? decideStepIntelligence({ step, workflowRequiresApproval: workflow.requiresApproval, approved: run.status !== "Requires Approval" })
+      : undefined;
+    return {
+      ...result,
+      intelligence: decision
+        ? {
+            label: decision.label,
+            usedIntelligence: decision.usedIntelligence,
+            reason: decision.reason,
+            decisionSource: decision.decisionSource,
+            estimatedCostUsd: decision.estimatedCostUsd,
+            estimatedSavedUsd: decision.estimatedSavedUsd,
+          }
+        : undefined,
+      output: result.output ?? (usage ? `[Simulated] ${usage.label}.` : result.output),
+    };
+  });
+  const costMetrics = buildWorkflowRunMetrics(stepResults, aiUsage);
+  const auditLog = [
+    buildWorkflowAuditEntry({
+      runId: run.id,
+      eventType: "RUN_STARTED",
+      message: `Workflow run started for "${workflow.name}".`,
+      actor: "digital-worker",
+      metadata: { workflowId: workflow.id },
+    }),
+    ...stepResults.flatMap((result) => {
+      const step = workflow.steps.find((item) => item.id === result.stepId);
+      const label = result.intelligence?.label ?? "Rule-Based Step";
+      return [
+        buildWorkflowAuditEntry({
+          runId: run.id,
+          stepId: result.stepId,
+          eventType: "STEP_STARTED",
+          message: `Started workflow step "${step?.name ?? result.stepId}".`,
+        }),
+        buildWorkflowAuditEntry({
+          runId: run.id,
+          stepId: result.stepId,
+          eventType:
+            label === "Intelligence Used"
+              ? "INTELLIGENCE_USED"
+              : label === "Human Approval Required"
+                ? "HUMAN_APPROVAL_REQUIRED"
+                : label === "Rule-Based Step"
+                  ? "RULE_BASED_STEP"
+                  : "INTELLIGENCE_SKIPPED",
+          message: `${label}: ${result.intelligence?.reason ?? "Completed with deterministic workflow policy."}`,
+        }),
+        buildWorkflowAuditEntry({
+          runId: run.id,
+          stepId: result.stepId,
+          eventType: result.status === "Failed" ? "STEP_FAILED" : "STEP_COMPLETED",
+          message: result.status === "Failed" ? `"${step?.name ?? result.stepId}" failed.` : `Completed "${step?.name ?? result.stepId}".`,
+        }),
+      ];
+    }),
+    buildWorkflowAuditEntry({
+      runId: run.id,
+      eventType: run.status === "Failed" ? "RUN_FAILED" : "RUN_COMPLETED",
+      message: run.status === "Requires Approval" ? "Workflow run paused for human approval." : `Workflow run ${run.status.toLowerCase()}.`,
+      metadata: { intelligenceAvoidanceRate: costMetrics.intelligenceAvoidanceRate },
+    }),
+  ];
+
+  return { ...run, stepResults, aiUsage, costMetrics, auditLog };
+}
+
 // In-memory, resets on server restart — same scope as ExecutionApproval's
 // approvalStore and every other Sprint 4+ mock store in this codebase.
 class WorkflowRunStoreImpl {
-  private runs = new Map<string, WorkflowRun>(SEED_RUNS.map((run) => [run.id, run]));
+  private runs = new Map<string, WorkflowRun>(SEED_RUNS.map((run) => enrichSeedRun(run)).map((run) => [run.id, run]));
 
   save(run: WorkflowRun): WorkflowRun {
     this.runs.set(run.id, run);

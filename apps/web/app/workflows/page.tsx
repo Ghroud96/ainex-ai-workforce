@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ModuleCard from "@/components/ModuleCard";
 import PageHeader from "@/components/PageHeader";
 import PriorityBadge from "@/components/PriorityBadge";
@@ -129,8 +130,9 @@ function RunList({ runs, library, emptyLabel }: { runs: WorkflowRun[]; library: 
         const workflow = library.find((entry) => entry.id === run.workflowId);
         const enriched = enrichWorkflowRun(run, workflow);
         return (
-          <div
+          <Link
             key={run.id}
+            href={`/workflows/runs/${run.id}`}
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 p-4"
           >
             <div>
@@ -148,7 +150,7 @@ function RunList({ runs, library, emptyLabel }: { runs: WorkflowRun[]; library: 
               <TagBadge label={run.status} />
               <PriorityBadge priority={enriched.priority} />
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>

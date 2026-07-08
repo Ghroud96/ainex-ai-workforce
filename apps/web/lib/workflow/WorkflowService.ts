@@ -3,6 +3,7 @@ import { WorkflowRegistry } from "@/lib/workflow/WorkflowRegistry";
 import { workflowRunStore } from "@/lib/workflow/WorkflowRunStore";
 import type { Workflow, WorkflowRun } from "@/lib/workflow/WorkflowTypes";
 import type { WorkflowProvider } from "@/lib/workflow/WorkflowProvider";
+import { WorkflowRunEngine } from "@/lib/workflow/run/WorkflowRunEngine";
 
 // The only active WorkflowProvider today (see
 // docs/architecture/n8n-integration.md for why there's one implementation,
@@ -74,15 +75,13 @@ export const WorkflowService = {
     }
 
     if (workflow.requiresApproval && !request.approved) {
-      const run: WorkflowRun = {
-        id: `run-${Date.now()}`,
-        workflowId: workflow.id,
-        status: "Requires Approval",
+      const run = WorkflowRunEngine.run({
+        workflow,
         triggeredBy: request.triggeredBy,
+        approved: false,
         providerId: activeProvider.id,
-        stepResults: workflow.steps.map((step) => ({ stepId: step.id, status: "Requires Approval" })),
-        startedAt: new Date().toISOString(),
-      };
+        input: request.input,
+      });
       return workflowRunStore.save(run);
     }
 

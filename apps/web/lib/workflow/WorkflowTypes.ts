@@ -36,6 +36,16 @@ export interface WorkflowStep {
   // compile-time dependency on the Action Layer; only the Action Layer
   // depends on the Workflow Layer (see docs/architecture/workflow-automation.md).
   actionType?: string;
+  intelligencePolicy?: WorkflowStepIntelligencePolicy;
+}
+
+export type WorkflowStepIntelligenceMode = "rule-based" | "intelligence-optional" | "intelligence-required";
+
+export interface WorkflowStepIntelligencePolicy {
+  mode: WorkflowStepIntelligenceMode;
+  reason: string;
+  estimatedCostUsd?: number;
+  estimatedSkippedCostUsd?: number;
 }
 
 export interface Workflow {
@@ -56,6 +66,71 @@ export interface WorkflowStepResult {
   stepId: string;
   status: WorkflowStatus;
   output?: string;
+  intelligence?: WorkflowStepIntelligenceDecision;
+}
+
+export type WorkflowStepIntelligenceDecisionLabel =
+  | "Intelligence Used"
+  | "Intelligence Skipped"
+  | "Rule-Based Step"
+  | "Human Approval Required";
+
+export interface WorkflowStepIntelligenceDecision {
+  label: WorkflowStepIntelligenceDecisionLabel;
+  usedIntelligence: boolean;
+  reason: string;
+  decisionSource: "policy" | "approval" | "input";
+  estimatedCostUsd: number;
+  estimatedSavedUsd: number;
+}
+
+export interface WorkflowAiUsageRecord {
+  runId: string;
+  stepId: string;
+  usedIntelligence: boolean;
+  label: WorkflowStepIntelligenceDecisionLabel;
+  reason: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  estimatedSavedUsd: number;
+  recordedAt: string;
+}
+
+export interface WorkflowRunCostMetrics {
+  totalSteps: number;
+  intelligenceUsedSteps: number;
+  intelligenceSkippedSteps: number;
+  ruleBasedSteps: number;
+  humanApprovalSteps: number;
+  intelligenceAvoidanceRate: number;
+  estimatedCostUsd: number;
+  estimatedSavedUsd: number;
+}
+
+export type WorkflowRunAuditEventType =
+  | "RUN_STARTED"
+  | "STEP_STARTED"
+  | "INTELLIGENCE_USED"
+  | "INTELLIGENCE_SKIPPED"
+  | "RULE_BASED_STEP"
+  | "HUMAN_APPROVAL_REQUIRED"
+  | "STEP_COMPLETED"
+  | "STEP_FAILED"
+  | "RUN_COMPLETED"
+  | "RUN_FAILED";
+
+export interface WorkflowRunAuditEntry {
+  id: string;
+  runId: string;
+  stepId?: string;
+  eventType: WorkflowRunAuditEventType;
+  message: string;
+  actor: "system" | "digital-worker" | "human";
+  timestamp: string;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface WorkflowRun {
@@ -68,6 +143,9 @@ export interface WorkflowRun {
   startedAt: string;
   completedAt?: string;
   error?: string;
+  aiUsage?: WorkflowAiUsageRecord[];
+  costMetrics?: WorkflowRunCostMetrics;
+  auditLog?: WorkflowRunAuditEntry[];
 }
 
 // The run's final, top-level outcome — distinct from WorkflowRun itself

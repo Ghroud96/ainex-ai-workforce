@@ -1,11 +1,6 @@
 import type { N8nWebhookResponse } from "@/lib/workflow/n8n/N8nWebhookClient";
-import type { Workflow, WorkflowRun, WorkflowStatus, WorkflowStepResult } from "@/lib/workflow/WorkflowTypes";
-
-let runCounter = 0;
-function nextRunId(): string {
-  runCounter += 1;
-  return `run-${Date.now()}-${runCounter}`;
-}
+import type { Workflow, WorkflowRun, WorkflowStatus } from "@/lib/workflow/WorkflowTypes";
+import { WorkflowRunEngine } from "@/lib/workflow/run/WorkflowRunEngine";
 
 function mapN8nStatus(status: string): WorkflowStatus {
   switch (status.toLowerCase()) {
@@ -33,15 +28,16 @@ export function mapN8nResponseToRun(
 ): WorkflowRun {
   const status = mapN8nStatus(response.status);
   const completedAt = status === "Completed" || status === "Failed" ? new Date().toISOString() : undefined;
+  const tracedRun = WorkflowRunEngine.run({ workflow, triggeredBy, approved: true, providerId: "n8n" });
 
   return {
-    id: response.executionId || nextRunId(),
+    ...tracedRun,
+    id: response.executionId || tracedRun.id,
     workflowId: workflow.id,
     status,
     triggeredBy,
     providerId: "n8n",
-    stepResults: workflow.steps.map((step) => ({ stepId: step.id, status })),
-    startedAt: new Date().toISOString(),
+    stepResults: tracedRun.stepResults.map((result) => ({ ...result, status })),
     completedAt,
   };
 }
@@ -51,23 +47,5 @@ export function mapN8nResponseToRun(
 // N8nWorkflowProvider uses whenever N8N_BASE_URL isn't configured (true
 // by default in this environment) — see docs/architecture/n8n-integration.md.
 export function buildSimulatedRun(workflow: Workflow, triggeredBy: string): WorkflowRun {
-  const startedAt = new Date().toISOString();
-  const completedAt = new Date().toISOString();
-
-  const stepResults: WorkflowStepResult[] = workflow.steps.map((step) => ({
-    stepId: step.id,
-    status: "Completed",
-    output: `[Simulated] "${step.name}" completed${step.actionType ? ` (${step.actionType})` : ""}.`,
-  }));
-
-  return {
-    id: nextRunId(),
-    workflowId: workflow.id,
-    status: "Completed",
-    triggeredBy,
-    providerId: "n8n",
-    stepResults,
-    startedAt,
-    completedAt,
-  };
+  return WorkflowRunEngine.run({ workflow, triggeredBy, approved: true, providerId: "n8n" });
 }
