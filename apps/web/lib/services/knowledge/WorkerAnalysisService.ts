@@ -11,6 +11,7 @@ import { WORKER_NAMES_BY_ID } from "@/lib/enterprise/BusinessInsights";
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
 import type { DepartmentWorkerId, EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
 import { getRelevantDocuments, withKnowledgeCitation } from "@/lib/company-intelligence/RelevantKnowledge";
+import { KnowledgeReferenceStore } from "@/lib/company-intelligence/KnowledgeReferenceStore";
 import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { createProviderContext } from "@/lib/llm/ProviderContext";
 import { ProviderRegistry } from "@/lib/llm/ProviderRegistry";
@@ -24,11 +25,17 @@ export interface WorkerAnalysisSection {
   value: string | string[];
 }
 
+export interface KnowledgeSourceUsed {
+  id: string;
+  name: string;
+  source: "demo" | "customer-upload";
+}
+
 export interface WorkerAnalysisResult {
   personaId: PersonaId;
   personaLabel: string;
   sections: WorkerAnalysisSection[];
-  knowledgeSourcesUsed: string[];
+  knowledgeSourcesUsed: KnowledgeSourceUsed[];
   modelUsed: string;
   source: "Demo Mode" | "Live AI";
   generationTimeMs: number;
@@ -377,7 +384,7 @@ function toResult(
   personaId: PersonaId,
   config: PersonaConfig,
   data: Record<string, string | string[]>,
-  extra: { knowledgeSourcesUsed: string[]; modelUsed: string; source: "Demo Mode" | "Live AI"; generationTimeMs: number },
+  extra: { knowledgeSourcesUsed: KnowledgeSourceUsed[]; modelUsed: string; source: "Demo Mode" | "Live AI"; generationTimeMs: number },
 ): WorkerAnalysisResult {
   return {
     personaId,
@@ -410,7 +417,15 @@ export async function analyzeDocumentForWorker(
   const relevantDocuments = getRelevantDocuments(config.workerId, WORKER_NAMES_BY_ID[config.workerId] ?? config.personaLabel)
     .map((match) => match.document)
     .filter((relevant) => relevant.id !== document.id);
-  const knowledgeSourcesUsed = [document.name, ...relevantDocuments.map((doc) => doc.name)];
+  const knowledgeSourcesUsed: KnowledgeSourceUsed[] = [document, ...relevantDocuments].map((doc) => ({
+    id: doc.id,
+    name: doc.name,
+    source: doc.source,
+  }));
+  // The one real "a worker used these documents" event — feeds the
+  // Knowledge Lifecycle's "Referenced by AI" stage (see
+  // lib/company-intelligence/KnowledgeReferenceStore.ts).
+  KnowledgeReferenceStore.markReferenced(knowledgeSourcesUsed.map((used) => used.id));
 
   const baseData = config.buildDeterministicBase(document, company, currentUser, relevantDocuments);
   const base = toResult(personaId, config, baseData, {

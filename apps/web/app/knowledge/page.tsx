@@ -8,6 +8,7 @@ import TeachAinexSessionStats from "@/components/TeachAinexSessionStats";
 import TeachAinexWizard from "@/components/TeachAinexWizard";
 import { getAllDocuments, formatFileSize, type DigitalDocument } from "@/data/documents";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
+import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { getKnowledgePipelineSummary } from "@/lib/services/knowledge/knowledgeHubBridge";
 
 const COVERAGE_TONE: Record<string, string> = {
@@ -80,10 +81,10 @@ export default async function KnowledgePage() {
 
       <section className="rounded-xl bg-slate-900 p-8">
         <SectionTitle
-          title="Teach AINEX about your company"
-          description="Upload one of your own documents and watch AINEX learn from it with real, live AI — right inside this demo."
+          title="Experience AINEX with Your Company"
+          description="Share one of your own company documents — a Sales SOP, a pricing policy, an employee handbook — and watch AINEX learn it live."
         />
-        <TeachAinexWizard />
+        <TeachAinexWizard liveAiEnabled={AiModeStore.isLiveModeEnabled()} />
         <div className="mt-4">
           <TeachAinexSessionStats />
         </div>

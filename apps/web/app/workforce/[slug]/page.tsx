@@ -78,7 +78,7 @@ export default async function WorkerOverviewPage({
 
       <section>
         <SectionTitle
-          title="Knowledge Sources"
+          title="Available Knowledge"
           description="Company knowledge this worker draws on when answering questions or making decisions."
         />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">

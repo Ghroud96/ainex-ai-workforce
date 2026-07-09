@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { teachAinexAboutDocument, type TeachAinexResult } from "@/app/knowledge/teachAinexActions";
+import { teachAinexAboutDocument } from "@/app/knowledge/teachAinexActions";
+import Stepper from "@/components/Stepper";
 import TagBadge from "@/components/TagBadge";
+import type { TeachAinexResult } from "@/lib/knowledge/CompanySourceTypes";
 
 const SUPPORTED_FILE_TYPES = ["PDF", "DOCX", "DOC", "XLSX", "CSV", "TXT", "PPTX", "Images"];
 
@@ -15,12 +17,25 @@ const CONFIDENCE_TONE: Record<string, string> = {
 
 type WizardStep = "choose" | "uploading" | "analysis" | "confirmed";
 
+const WIZARD_STEPS = ["Choose Document", "Upload", "AINEX Learning", "Company Intelligence Updated", "Digital Workforce Ready"] as const;
+
+// "uploading" covers both "Upload" and "AINEX Learning" — they're one
+// continuous real network+AI call from the client's perspective, not two
+// separate round-trips, so both render as reached/active together rather
+// than faking a pause between them.
+const STEP_TO_STEPPER_INDEX: Record<WizardStep, number> = {
+  choose: 0,
+  uploading: 2,
+  analysis: 3,
+  confirmed: 4,
+};
+
 // A deliberately separate, differently-framed flow from UploadDialog.tsx
 // (which stays untouched as the manual, power-user upload path). This one
 // never says "Upload Document" — the point of this feature is that it
 // should feel like teaching a new Digital Workforce employee about the
 // company, not operating a technical upload tool.
-export default function TeachAinexWizard() {
+export default function TeachAinexWizard({ liveAiEnabled }: { liveAiEnabled: boolean }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>("choose");
   const [file, setFile] = useState<File | null>(null);
@@ -62,7 +77,7 @@ export default function TeachAinexWizard() {
         onClick={() => setOpen(true)}
         className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
       >
-        Teach AINEX about your company
+        Experience AINEX with Your Company
       </button>
 
       {open && (
@@ -71,15 +86,15 @@ export default function TeachAinexWizard() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-white">
-                  {step === "choose" && "Teach AINEX about your company"}
-                  {step === "uploading" && "Handing this to AINEX..."}
+                  {step === "choose" && "Experience AINEX with Your Company"}
+                  {step === "uploading" && "AINEX is learning..."}
                   {step === "analysis" && "Here's what AINEX just learned"}
                   {step === "confirmed" && `${result?.document.name} is now part of your Digital Workforce`}
                 </h2>
                 {step === "choose" && (
                   <p className="mt-1 text-sm text-slate-400">
-                    Upload one real document from your business. AINEX will read it with live AI and learn from it
-                    immediately.
+                    Share one real piece of your business — a Sales SOP, a pricing policy, an employee handbook — and
+                    watch AINEX learn it live.
                   </p>
                 )}
               </div>
@@ -88,8 +103,19 @@ export default function TeachAinexWizard() {
               </button>
             </div>
 
+            <div className="mt-6">
+              <Stepper steps={WIZARD_STEPS} currentIndex={STEP_TO_STEPPER_INDEX[step]} />
+            </div>
+
             {error && (
               <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p>
+            )}
+
+            {step === "choose" && !liveAiEnabled && (
+              <p className="mt-4 rounded-lg bg-slate-800/60 p-3 text-xs text-slate-400">
+                Live AI is off — this analysis will use AINEX&apos;s deterministic engine. Turn on Live AI in Settings
+                for a real AI read.
+              </p>
             )}
 
             {step === "choose" && (
@@ -246,13 +272,33 @@ export default function TeachAinexWizard() {
                 </div>
 
                 <div className="rounded-lg bg-slate-800/60 p-4 text-sm text-slate-400">
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Current Session</p>
+                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Demo Session</p>
                   <p className="mt-1">
-                    {result.sessionSnapshot.uploadCount} uploaded file
-                    {result.sessionSnapshot.uploadCount === 1 ? "" : "s"} · Live AI Runs{" "}
+                    {result.sessionSnapshot.uploadCount} document
+                    {result.sessionSnapshot.uploadCount === 1 ? "" : "s"} learned · {result.sessionSnapshot.workersUpdatedCount}{" "}
+                    worker{result.sessionSnapshot.workersUpdatedCount === 1 ? "" : "s"} updated · Live AI Analyses{" "}
                     {result.sessionSnapshot.liveAiCallCount} · Estimated AI Cost RM
                     {result.sessionSnapshot.estimatedCostRm.toFixed(2)}
                   </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-4">
+                  <Link
+                    href="/dashboard"
+                    onClick={close}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+                  >
+                    Continue to Executive Dashboard →
+                  </Link>
+                  {result.workersNowTrained.some((worker) => worker.slug === "sales") && (
+                    <Link
+                      href="/workforce/sales/workspace"
+                      onClick={close}
+                      className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700"
+                    >
+                      Continue to Sales Workspace →
+                    </Link>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-3 pt-2">

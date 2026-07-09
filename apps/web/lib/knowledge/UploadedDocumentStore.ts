@@ -19,6 +19,14 @@ class UploadedDocumentStoreImpl {
   getAll(): DigitalDocument[] {
     return this.documents;
   }
+
+  // The "start a fresh demo" safety valve — a presenter clears the
+  // previous customer's uploads before the next demo, since this store is
+  // process-global with no per-browser-session isolation (see
+  // docs/product/hybrid-enterprise-demo.md).
+  clear(): void {
+    this.documents = [];
+  }
 }
 
 const GLOBAL_KEY = Symbol.for("ainex.UploadedDocumentStore");

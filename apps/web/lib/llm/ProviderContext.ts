@@ -4,11 +4,6 @@ export interface ProviderContext {
   sessionId?: string;
   locale?: string;
   metadata?: Record<string, string>;
-  // An explicit, narrowly-scoped escape hatch from the global Demo/Live AI
-  // toggle for exactly one call. Undefined/false everywhere except the one
-  // Teach AINEX call site — every other existing caller never sets this,
-  // so they are byte-for-byte unaffected.
-  forceLiveAi?: boolean;
 }
 
 export function createProviderContext(overrides: Partial<ProviderContext> = {}): ProviderContext {
@@ -18,6 +13,5 @@ export function createProviderContext(overrides: Partial<ProviderContext> = {}):
     sessionId: overrides.sessionId,
     locale: overrides.locale ?? "en",
     metadata: overrides.metadata,
-    forceLiveAi: overrides.forceLiveAi,
   };
 }

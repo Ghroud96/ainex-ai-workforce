@@ -14,12 +14,14 @@ const USD_TO_RM_RATE = 4.7;
 export interface TeachAinexSessionSnapshot {
   uploadCount: number;
   liveAiCallCount: number;
+  workersUpdatedCount: number;
   estimatedCostRm: number;
 }
 
 class TeachAinexSessionStoreImpl {
   private uploadCount = 0;
   private liveAiCallCount = 0;
+  private workersUpdated = new Set<string>();
 
   recordUpload(): void {
     this.uploadCount += 1;
@@ -29,11 +31,27 @@ class TeachAinexSessionStoreImpl {
     this.liveAiCallCount += 1;
   }
 
+  recordWorkersUpdated(workerSlugs: string[]): void {
+    for (const slug of workerSlugs) {
+      this.workersUpdated.add(slug);
+    }
+  }
+
+  // The "start a fresh demo" safety valve's counterpart to
+  // UploadedDocumentStore.clear() — always called together, see
+  // app/knowledge/teachAinexActions.ts::resetTeachAinexSession().
+  reset(): void {
+    this.uploadCount = 0;
+    this.liveAiCallCount = 0;
+    this.workersUpdated = new Set<string>();
+  }
+
   snapshot(): TeachAinexSessionSnapshot {
     const estimatedCostUsd = this.liveAiCallCount * ESTIMATED_COST_USD_PER_LIVE_CALL;
     return {
       uploadCount: this.uploadCount,
       liveAiCallCount: this.liveAiCallCount,
+      workersUpdatedCount: this.workersUpdated.size,
       estimatedCostRm: Number((estimatedCostUsd * USD_TO_RM_RATE).toFixed(2)),
     };
   }

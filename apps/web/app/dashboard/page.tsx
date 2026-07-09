@@ -17,6 +17,7 @@ import {
 } from "@/lib/enterprise/BusinessInsights";
 import LiveOnboardingBanner from "@/components/LiveOnboardingBanner";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
+import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { buildSimulatedEventFeed } from "@/lib/enterprise/LiveSimulationBuilder";
@@ -183,10 +184,10 @@ export default function DashboardPage() {
 
       <section className="mt-10 rounded-xl bg-slate-900 p-8">
         <SectionTitle
-          title="Teach AINEX about your company"
-          description="Prove it to yourself — upload one real document and see AINEX understand it instantly."
+          title="Experience AINEX with Your Company"
+          description="You've seen the Demo Company. Now share one real document from your own — AINEX learns it live."
         />
-        <TeachAinexWizard />
+        <TeachAinexWizard liveAiEnabled={AiModeStore.isLiveModeEnabled()} />
         <div className="mt-4">
           <TeachAinexSessionStats />
         </div>

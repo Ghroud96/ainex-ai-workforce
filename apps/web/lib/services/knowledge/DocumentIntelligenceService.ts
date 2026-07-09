@@ -165,15 +165,11 @@ function isValidIntelligenceShape(value: unknown): value is ParsedIntelligence {
 // is off (the default) or when anything below fails; the try/catch is the
 // only thing standing between a provider hiccup and a broken page, so it
 // wraps the entire AI path, not just the network call.
-export async function summarizeDocument(
-  document: DigitalDocument,
-  options?: { forceLiveAi?: boolean },
-): Promise<DocumentIntelligence> {
+export async function summarizeDocument(document: DigitalDocument): Promise<DocumentIntelligence> {
   const base = buildDeterministicIntelligence(document);
-  const forceLiveAi = options?.forceLiveAi ?? false;
 
   const provider = ProviderRegistry.getActive();
-  if ((!AiModeStore.isLiveModeEnabled() && !forceLiveAi) || provider?.id !== "openai") {
+  if (!AiModeStore.isLiveModeEnabled() || provider?.id !== "openai") {
     return base;
   }
 
@@ -195,7 +191,7 @@ export async function summarizeDocument(
           },
         ],
       },
-      createProviderContext({ workerId: "executive", forceLiveAi }),
+      createProviderContext({ workerId: "executive" }),
     );
 
     const generationTimeMs = Date.now() - startedAt;

@@ -358,10 +358,20 @@ function WorkerAiAnalysisBlock({
           ) : (
             result.sections.map((section) => <AnalysisSection key={section.key} section={section} />)
           )}
-          <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-4">
-            <TagBadge label={`Company Intelligence Used: ${result.knowledgeSourcesUsed.join(", ")}`} />
-            <TagBadge label={`Model: ${result.modelUsed}`} />
-            <TagBadge label={result.source} />
+          <div className="border-t border-slate-800 pt-4">
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Knowledge Used</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {result.knowledgeSourcesUsed.map((used) => (
+                <TagBadge
+                  key={used.id}
+                  label={`${used.name} (${used.source === "customer-upload" ? "Customer Upload" : "Demo"})`}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <TagBadge label={`Model: ${result.modelUsed}`} />
+              <TagBadge label={result.source} />
+            </div>
           </div>
         </div>
       ) : (

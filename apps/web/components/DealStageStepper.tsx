@@ -1,3 +1,4 @@
+import Stepper from "@/components/Stepper";
 import type { DealStage } from "@/lib/sales/SalesDealTypes";
 
 const MILESTONES = ["Customer", "Meeting", "Quotation", "Manager Approval", "Finance Review", "Completed"] as const;
@@ -33,33 +34,5 @@ export default function DealStageStepper({ stage }: { stage: DealStage }) {
 
   const currentIndex = STAGE_TO_MILESTONE_INDEX[stage];
 
-  return (
-    <div className="flex items-center">
-      {MILESTONES.map((milestone, index) => (
-        <div key={milestone} className="flex items-center">
-          <div className="flex flex-col items-center gap-1">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                index < currentIndex
-                  ? "bg-green-500"
-                  : index === currentIndex
-                    ? "bg-blue-500 ring-4 ring-blue-500/20"
-                    : "bg-slate-700"
-              }`}
-            />
-            <span
-              className={`whitespace-nowrap text-[11px] ${
-                index === currentIndex ? "font-semibold text-white" : index < currentIndex ? "text-green-400" : "text-slate-500"
-              }`}
-            >
-              {milestone}
-            </span>
-          </div>
-          {index < MILESTONES.length - 1 && (
-            <div className={`mb-4 h-px w-6 sm:w-10 ${index < currentIndex ? "bg-green-500" : "bg-slate-700"}`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
+  return <Stepper steps={MILESTONES} currentIndex={currentIndex} />;
 }

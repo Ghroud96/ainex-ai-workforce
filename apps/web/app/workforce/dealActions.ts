@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { authorizedOrDemoMode } from "@/lib/approvals/ApprovalAuthorization";
+import { createStageDecisionAction } from "@/lib/approvals/StageDecisionAction";
 import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
 import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
 import { runDealTouchpoint } from "@/lib/sales/DealAiService";
 import { SalesDealStore } from "@/lib/sales/SalesDealStore";
-import { STAGE_CONFIG, type DealStage, type DealTouchpointId } from "@/lib/sales/SalesDealTypes";
+import { STAGE_CONFIG, type DealStage, type DealTouchpointId, type SalesDeal } from "@/lib/sales/SalesDealTypes";
 
 function isSalesManager(user: EnterpriseUser): boolean {
   return user.departmentWorkerId === "sales" && user.roleLevel !== "Staff";
@@ -105,30 +107,28 @@ const MANAGER_OUTCOME_STAGE: Record<ManagerOutcome, DealStage> = {
   revise: "revision-requested",
 };
 
-export async function managerDecision(formData: FormData): Promise<void> {
-  const dealId = formData.get("dealId");
-  const outcome = formData.get("outcome") as ManagerOutcome | null;
-  if (typeof dealId !== "string" || !outcome || !(outcome in MANAGER_OUTCOME_STAGE)) {
-    throw new Error("A deal and decision are required.");
-  }
-
-  const deal = SalesDealStore.get(dealId);
-  if (!deal) throw new Error("Deal could not be found.");
-
-  const { company } = CompanyProfileStore.getCurrent();
-  const currentUser = resolveCurrentUser(company);
-  const authorized = isSalesManager(currentUser) || CompanyModeStore.isDemoModeEnabled();
-  if (!authorized) {
-    throw new Error("You do not have permission to execute this Digital Worker.");
-  }
-  if (deal.stage !== "pending-manager-approval") {
-    throw new Error("This deal is not awaiting manager approval.");
-  }
-
-  SalesDealStore.advance(dealId, MANAGER_OUTCOME_STAGE[outcome], `Manager ${outcome}d by ${currentUser.name}.`);
-  revalidatePath("/workforce/sales/workspace");
-  revalidatePath("/dashboard");
-}
+// The reference consumer of the shared approval framework — see
+// lib/approvals/StageDecisionAction.ts and
+// docs/architecture/approval-workflow-engine.md. Every future workflow's
+// decision action should look like this: entity/stage plumbing only, no
+// re-implemented gating, auth-bypass, or error handling.
+export const managerDecision = createStageDecisionAction<SalesDeal, DealStage, ManagerOutcome>({
+  requiredStage: "pending-manager-approval",
+  outcomeToStage: MANAGER_OUTCOME_STAGE,
+  getEntity: (id) => SalesDealStore.get(id),
+  getStage: (deal) => deal.stage,
+  isAuthorized: (user) => authorizedOrDemoMode(isSalesManager(user)),
+  advance: (id, nextStage, note) => SalesDealStore.advance(id, nextStage, note),
+  buildNote: (outcome, user) => `Manager ${outcome}d by ${user.name}.`,
+  revalidate: () => {
+    revalidatePath("/workforce/sales/workspace");
+    revalidatePath("/dashboard");
+  },
+  messages: {
+    invalidRequest: "A deal and decision are required.",
+    notFound: "Deal could not be found.",
+  },
+});
 
 type FinanceOutcome = "approve" | "reject";
 const FINANCE_OUTCOME_STAGE: Record<FinanceOutcome, DealStage> = {
@@ -136,27 +136,20 @@ const FINANCE_OUTCOME_STAGE: Record<FinanceOutcome, DealStage> = {
   reject: "rejected",
 };
 
-export async function financeDecision(formData: FormData): Promise<void> {
-  const dealId = formData.get("dealId");
-  const outcome = formData.get("outcome") as FinanceOutcome | null;
-  if (typeof dealId !== "string" || !outcome || !(outcome in FINANCE_OUTCOME_STAGE)) {
-    throw new Error("A deal and decision are required.");
-  }
-
-  const deal = SalesDealStore.get(dealId);
-  if (!deal) throw new Error("Deal could not be found.");
-
-  const { company } = CompanyProfileStore.getCurrent();
-  const currentUser = resolveCurrentUser(company);
-  const authorized = isFinanceUser(currentUser) || CompanyModeStore.isDemoModeEnabled();
-  if (!authorized) {
-    throw new Error("You do not have permission to execute this Digital Worker.");
-  }
-  if (deal.stage !== "pending-finance-review") {
-    throw new Error("This deal is not awaiting finance review.");
-  }
-
-  SalesDealStore.advance(dealId, FINANCE_OUTCOME_STAGE[outcome], `Finance ${outcome}d by ${currentUser.name}.`);
-  revalidatePath("/workforce/finance/workspace");
-  revalidatePath("/dashboard");
-}
+export const financeDecision = createStageDecisionAction<SalesDeal, DealStage, FinanceOutcome>({
+  requiredStage: "pending-finance-review",
+  outcomeToStage: FINANCE_OUTCOME_STAGE,
+  getEntity: (id) => SalesDealStore.get(id),
+  getStage: (deal) => deal.stage,
+  isAuthorized: (user) => authorizedOrDemoMode(isFinanceUser(user)),
+  advance: (id, nextStage, note) => SalesDealStore.advance(id, nextStage, note),
+  buildNote: (outcome, user) => `Finance ${outcome}d by ${user.name}.`,
+  revalidate: () => {
+    revalidatePath("/workforce/finance/workspace");
+    revalidatePath("/dashboard");
+  },
+  messages: {
+    invalidRequest: "A deal and decision are required.",
+    notFound: "Deal could not be found.",
+  },
+});

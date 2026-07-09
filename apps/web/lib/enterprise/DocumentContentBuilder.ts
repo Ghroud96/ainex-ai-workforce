@@ -25,6 +25,7 @@ export interface BuiltDigitalDocument {
   usedBy: string[];
   workflows: string[];
   relatedDocuments: string[];
+  source: "demo" | "customer-upload";
 }
 
 interface DocRole {
@@ -104,6 +105,7 @@ export function buildDocumentsFromCompany(company: GeneratedCompany, documentCou
       usedBy: role.usedBy,
       workflows: role.workflows,
       relatedDocuments: role.relatedTo.filter((id) => roles.some((r) => r.id === id)),
+      source: "demo",
     };
   });
 }

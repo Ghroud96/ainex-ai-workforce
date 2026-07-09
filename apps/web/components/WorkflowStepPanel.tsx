@@ -1,4 +1,5 @@
 import { advanceDeal, financeDecision, managerDecision, runDealAi } from "@/app/workforce/dealActions";
+import StageDecisionActions from "@/components/approvals/StageDecisionActions";
 import DealStageStepper from "@/components/DealStageStepper";
 import TagBadge from "@/components/TagBadge";
 import { getTouchpointLabel } from "@/lib/sales/DealAiService";
@@ -123,49 +124,27 @@ export default function WorkflowStepPanel({
             </form>
           )}
 
-          {stageConfig.responsibleRole === "Sales Manager" && (
-            <>
-              <form action={managerDecision}>
-                <input type="hidden" name="dealId" value={deal.id} />
-                <input type="hidden" name="outcome" value="approve" />
-                <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">
-                  Approve
-                </button>
-              </form>
-              <form action={managerDecision}>
-                <input type="hidden" name="dealId" value={deal.id} />
-                <input type="hidden" name="outcome" value="revise" />
-                <button type="submit" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700">
-                  Request Revision
-                </button>
-              </form>
-              <form action={managerDecision}>
-                <input type="hidden" name="dealId" value={deal.id} />
-                <input type="hidden" name="outcome" value="reject" />
-                <button type="submit" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-slate-700">
-                  Reject
-                </button>
-              </form>
-            </>
+          {deal.stage === "pending-manager-approval" && (
+            <StageDecisionActions
+              entityId={deal.id}
+              action={managerDecision}
+              buttons={[
+                { outcome: "approve", label: "Approve", variant: "primary" },
+                { outcome: "revise", label: "Request Revision", variant: "neutral" },
+                { outcome: "reject", label: "Reject", variant: "destructive" },
+              ]}
+            />
           )}
 
-          {stageConfig.responsibleRole === "Finance" && (
-            <>
-              <form action={financeDecision}>
-                <input type="hidden" name="dealId" value={deal.id} />
-                <input type="hidden" name="outcome" value="approve" />
-                <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500">
-                  Approve
-                </button>
-              </form>
-              <form action={financeDecision}>
-                <input type="hidden" name="dealId" value={deal.id} />
-                <input type="hidden" name="outcome" value="reject" />
-                <button type="submit" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-slate-700">
-                  Reject
-                </button>
-              </form>
-            </>
+          {deal.stage === "pending-finance-review" && (
+            <StageDecisionActions
+              entityId={deal.id}
+              action={financeDecision}
+              buttons={[
+                { outcome: "approve", label: "Approve", variant: "primary" },
+                { outcome: "reject", label: "Reject", variant: "destructive" },
+              ]}
+            />
           )}
         </div>
       )}

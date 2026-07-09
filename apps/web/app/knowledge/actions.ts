@@ -58,6 +58,7 @@ export async function uploadDocument(formData: FormData): Promise<void> {
     usedBy: deriveUsedByForDepartment(department),
     workflows: [],
     relatedDocuments: [],
+    source: "customer-upload",
   };
 
   UploadedDocumentStore.add(document);

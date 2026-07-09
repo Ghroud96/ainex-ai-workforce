@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import DocumentCard from "@/components/DocumentCard";
 import DocumentStatus from "@/components/DocumentStatus";
+import KnowledgeSourceBadge from "@/components/KnowledgeSourceBadge";
 import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
+import Stepper from "@/components/Stepper";
 import TagBadge from "@/components/TagBadge";
 import WorkflowCard from "@/components/WorkflowCard";
 import {
@@ -14,6 +16,7 @@ import {
 } from "@/data/documents";
 import { getAllWorkers } from "@/data/workers";
 import { enrichDocument } from "@/lib/enterprise/BusinessInsights";
+import { getKnowledgeLifecycleIndex, KNOWLEDGE_LIFECYCLE_STAGES } from "@/lib/company-intelligence/KnowledgeLifecycle";
 import { summarizeDocument } from "@/lib/services/knowledge/DocumentIntelligenceService";
 import { getKnowledgePipelineResult } from "@/lib/services/knowledge/knowledgeHubBridge";
 
@@ -83,7 +86,10 @@ export default async function DocumentDetailPage({
             </p>
             <h1 className="mt-2 text-3xl font-bold text-white">{document.name}</h1>
           </div>
-          <DocumentStatus status={document.status} />
+          <div className="flex items-center gap-2">
+            <KnowledgeSourceBadge source={document.source} />
+            <DocumentStatus status={document.status} />
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -126,6 +132,14 @@ export default async function DocumentDetailPage({
           ))}
         </div>
       </div>
+
+      <section>
+        <SectionTitle
+          title="Knowledge Lifecycle"
+          description="Where this document is in becoming usable Company Intelligence — not the technical pipeline below, the business-facing view of whether it's doing its job yet."
+        />
+        <Stepper steps={KNOWLEDGE_LIFECYCLE_STAGES} currentIndex={getKnowledgeLifecycleIndex(document)} />
+      </section>
 
       <section>
         <SectionTitle

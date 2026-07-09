@@ -1,9 +1,11 @@
 import Link from "next/link";
 import DocumentStatus from "@/components/DocumentStatus";
+import KnowledgeSourceBadge from "@/components/KnowledgeSourceBadge";
 import PriorityBadge from "@/components/PriorityBadge";
 import TagBadge from "@/components/TagBadge";
 import { formatFileSize, type DigitalDocument } from "@/data/documents";
 import { enrichDocument } from "@/lib/enterprise/BusinessInsights";
+import { getKnowledgeLifecycleLabel } from "@/lib/company-intelligence/KnowledgeLifecycle";
 
 export default function DocumentCard({ document }: { document: DigitalDocument }) {
   const { usageCount, businessImportance } = enrichDocument(document);
@@ -21,10 +23,15 @@ export default function DocumentCard({ document }: { document: DigitalDocument }
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        <KnowledgeSourceBadge source={document.source} />
         <PriorityBadge priority={businessImportance} />
         <span className="text-xs text-slate-500">
           Used {usageCount} time{usageCount === 1 ? "" : "s"} across the Digital Workforce
         </span>
+      </div>
+
+      <div className="mt-2">
+        <span className="text-xs text-slate-500">{getKnowledgeLifecycleLabel(document)}</span>
       </div>
 
       <p className="mt-4 flex-1 text-sm text-slate-300">{document.description}</p>
