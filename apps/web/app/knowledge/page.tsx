@@ -8,7 +8,6 @@ import TeachAinexSessionStats from "@/components/TeachAinexSessionStats";
 import TeachAinexWizard from "@/components/TeachAinexWizard";
 import { getAllDocuments, formatFileSize, type DigitalDocument } from "@/data/documents";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
-import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { getKnowledgePipelineSummary } from "@/lib/services/knowledge/knowledgeHubBridge";
 
 const COVERAGE_TONE: Record<string, string> = {
@@ -84,7 +83,7 @@ export default async function KnowledgePage() {
           title="Experience AINEX with Your Company"
           description="Share one of your own company documents — a Sales SOP, a pricing policy, an employee handbook — and watch AINEX learn it live."
         />
-        <TeachAinexWizard liveAiEnabled={AiModeStore.isLiveModeEnabled()} />
+        <TeachAinexWizard />
         <div className="mt-4">
           <TeachAinexSessionStats />
         </div>
@@ -107,7 +106,7 @@ export default async function KnowledgePage() {
       <div className="mt-10">
         <SectionTitle
           title="Company Intelligence Overview"
-          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on — deterministic, no AI involved."
+          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on."
         />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl bg-slate-900 p-6">
@@ -142,7 +141,7 @@ export default async function KnowledgePage() {
               {intelligence.sources.map((source) => (
                 <div key={source.id} className="flex items-center justify-between text-sm">
                   <span className="text-slate-300">{source.name}</span>
-                  <TagBadge label={source.isImplemented ? `Connected — ${source.documentCount()} documents` : "Not Yet Connected"} />
+                  <TagBadge label={source.isImplemented ? `Connected — ${source.documentCount()} documents` : "Coming Soon"} />
                 </div>
               ))}
             </div>
@@ -159,7 +158,7 @@ export default async function KnowledgePage() {
       <div className="mt-10">
         <SectionTitle
           title="Pipeline Status"
-          description="Where every document currently sits in the Enterprise Intelligence pipeline (Knowledge Hub → Parser → Chunking → Indexing → Retrieval)."
+          description="Where every document currently sits, from upload to ready-for-use."
         />
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-6">
           <KnowledgeStatCard title="Uploaded" value={String(pipelineSummary.Uploaded)} />
@@ -198,7 +197,7 @@ export default async function KnowledgePage() {
       <div className="mt-10">
         <SectionTitle
           title="Knowledge Intelligence Roadmap"
-          description="The retrieval system that will let every Digital Worker query this library directly. Architecture is defined in apps/web/lib/ — real providers are not connected yet."
+          description="What's coming next for how every Digital Worker will query this library directly."
         />
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {roadmapItems.map((item) => (
@@ -206,7 +205,7 @@ export default async function KnowledgePage() {
               key={item.title}
               title={item.title}
               description={item.description}
-              status="Architecture Ready"
+              status="Coming Soon"
               statusTone="amber"
             />
           ))}

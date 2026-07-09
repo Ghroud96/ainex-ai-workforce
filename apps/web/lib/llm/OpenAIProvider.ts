@@ -42,7 +42,7 @@ function demoModeResponse(model: string): ProviderResponse {
   return {
     providerId: "openai",
     model,
-    content: "AINEX is running in demo mode — no real OpenAI request was made. Live AI is off by default; enabling it is a future, explicit opt-in.",
+    content: "AINEX is running in Demo Mode. Turn on Live AI in Settings for a real AI-generated response.",
     finishReason: "stop",
     usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     generatedAt: new Date().toISOString(),

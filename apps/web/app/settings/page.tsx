@@ -159,7 +159,7 @@ export default function SettingsPage() {
       <section>
         <SectionTitle
           title="AI Provider Settings"
-          description="Controls whether the Executive Worker's document summaries use a real AI provider or stay in deterministic demo mode. Off by default — enabling Live AI is always an explicit choice made here."
+          description="Controls whether the Executive Worker's document summaries use a real AI provider or stay in Demo Mode. Off by default — enabling Live AI is always an explicit choice made here."
         />
         <div className="rounded-xl bg-slate-900 p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -178,8 +178,8 @@ export default function SettingsPage() {
 
           <p className="mt-4 text-sm text-slate-400">
             {liveAiEnabled
-              ? "The Executive Worker sends uploaded document content to the configured AI provider. If the provider fails or no key is configured, AINEX falls back to deterministic Demo Mode automatically."
-              : "The Executive Worker uses deterministic Demo Mode for every document summary. No request ever leaves AINEX."}
+              ? "The Executive Worker sends uploaded document content to the configured AI provider. If the provider fails or no key is configured, AINEX falls back to Demo Mode automatically."
+              : "The Executive Worker uses Demo Mode for every document summary. No request ever leaves AINEX."}
           </p>
 
           <form action={setLiveAiMode} className="mt-6">
@@ -216,7 +216,7 @@ export default function SettingsPage() {
 
           <p className="mt-4 text-sm text-slate-400">
             {demoModeEnabled
-              ? "Every page shows a realistic, fully generated company — customers, deals, documents, and workflows are all deterministic demo data. Every Digital Worker's execution and every deal-workflow action is executable by the current simulated user without switching users."
+              ? "Every page shows a realistic, fully generated company — customers, deals, documents, and workflows are all demo data. Every Digital Worker's execution and every deal-workflow action is executable by the current simulated user without switching users."
               : "Your Live Company starts empty. Nothing is generated — upload documents, invite employees, and add real business data to see it reflected everywhere. Digital Worker execution and deal-workflow actions require the current simulated user to hold the right role, the same permission architecture that ships in production."}
           </p>
 

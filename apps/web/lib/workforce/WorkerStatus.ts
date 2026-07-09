@@ -8,10 +8,10 @@ export interface WorkerHealth {
 }
 
 const HEALTH_NOTES: Record<WorkerStatusValue, string> = {
-  Available: "Running on mock data — no live AI provider connected.",
-  "In Development": "Architecture defined; not yet running live capabilities.",
-  "Coming Soon": "Registered, but not yet enabled for active use.",
-  Offline: "Registered but currently disabled.",
+  Available: "Operating normally.",
+  "In Development": "Still being built — not yet available.",
+  "Coming Soon": "Not yet enabled for active use.",
+  Offline: "Currently disabled.",
 };
 
 export function computeWorkerHealth(status: WorkerStatusValue): WorkerHealth {

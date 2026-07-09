@@ -35,7 +35,7 @@ const STEP_TO_STEPPER_INDEX: Record<WizardStep, number> = {
 // never says "Upload Document" — the point of this feature is that it
 // should feel like teaching a new Digital Workforce employee about the
 // company, not operating a technical upload tool.
-export default function TeachAinexWizard({ liveAiEnabled }: { liveAiEnabled: boolean }) {
+export default function TeachAinexWizard() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>("choose");
   const [file, setFile] = useState<File | null>(null);
@@ -109,13 +109,6 @@ export default function TeachAinexWizard({ liveAiEnabled }: { liveAiEnabled: boo
 
             {error && (
               <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p>
-            )}
-
-            {step === "choose" && !liveAiEnabled && (
-              <p className="mt-4 rounded-lg bg-slate-800/60 p-3 text-xs text-slate-400">
-                Live AI is off — this analysis will use AINEX&apos;s deterministic engine. Turn on Live AI in Settings
-                for a real AI read.
-              </p>
             )}
 
             {step === "choose" && (
@@ -257,17 +250,17 @@ export default function TeachAinexWizard({ liveAiEnabled }: { liveAiEnabled: boo
 
             {step === "confirmed" && result && (
               <div className="mt-6 space-y-4">
-                <p className="text-sm text-slate-300">AINEX has taught this to:</p>
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-800/40 p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium text-green-400">
+                    <span>✓</span> Company Intelligence Updated
+                  </p>
+                  <p className="flex items-center gap-2 text-sm font-medium text-green-400">
+                    <span>✓</span> Digital Workforce Updated
+                  </p>
                   {result.workersNowTrained.map((worker) => (
-                    <Link
-                      key={worker.slug}
-                      href={`/workforce/${worker.slug}`}
-                      onClick={close}
-                      className="block rounded-lg border border-slate-800 bg-slate-800/60 p-3 text-sm text-blue-400 hover:text-blue-300"
-                    >
-                      See it in {worker.name}&apos;s Available Knowledge →
-                    </Link>
+                    <p key={worker.slug} className="flex items-center gap-2 text-sm font-medium text-green-400">
+                      <span>✓</span> {worker.name} Updated
+                    </p>
                   ))}
                 </div>
 

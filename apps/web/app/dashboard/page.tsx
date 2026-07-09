@@ -1,4 +1,5 @@
 import ActivityTimeline from "@/components/ActivityTimeline";
+import Expandable from "@/components/Expandable";
 import InsightCard from "@/components/InsightCard";
 import KpiCard from "@/components/KpiCard";
 import LiveActivityTicker from "@/components/LiveActivityTicker";
@@ -8,6 +9,7 @@ import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
 import TeachAinexSessionStats from "@/components/TeachAinexSessionStats";
 import TeachAinexWizard from "@/components/TeachAinexWizard";
+import TodaysDecision from "@/components/TodaysDecision";
 import WorkflowCard from "@/components/WorkflowCard";
 import {
   buildRecommendedActions,
@@ -17,7 +19,6 @@ import {
 } from "@/lib/enterprise/BusinessInsights";
 import LiveOnboardingBanner from "@/components/LiveOnboardingBanner";
 import { buildCompanyIntelligenceOverview } from "@/lib/company-intelligence/CompanyIntelligenceOverviewBuilder";
-import { AiModeStore } from "@/lib/llm/AiModeStore";
 import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { buildSimulatedEventFeed } from "@/lib/enterprise/LiveSimulationBuilder";
@@ -29,7 +30,6 @@ import {
   buildUpcomingEvents,
   buildWorkforceActivityFeed,
 } from "@/lib/enterprise/NarrativeBuilder";
-import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 import { WorkflowService } from "@/lib/workflow/WorkflowService";
 
 const HEALTH_TONE: Record<string, string> = {
@@ -56,14 +56,6 @@ export default function DashboardPage() {
   const recommendedActions = buildRecommendedActions(company);
   const simulatedEvents = buildSimulatedEventFeed(company);
 
-  // Enterprise Demo V1 — the connected Sales -> Manager -> Finance story
-  // automatically reflected here, zero AI calls, same deterministic-read
-  // pattern as every other tile on this page.
-  const deals = SalesDealStore.listFor(company);
-  const dealsPendingApproval = deals.filter(
-    (deal) => deal.stage === "pending-manager-approval" || deal.stage === "pending-finance-review",
-  ).length;
-  const dealsConfirmed = deals.filter((deal) => deal.stage === "confirmed").length;
   const intelligence = buildCompanyIntelligenceOverview();
   // A freshly empty Live Company (no employees invited yet) is the signal
   // for the onboarding banner — the same "is this company actually empty"
@@ -83,10 +75,17 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Morning Executive Brief — the hero: everything a CEO needs in the
-          first 60 seconds, read like a briefing prepared by an executive
-          assistant, not a system status page. */}
-      <section className="rounded-xl bg-slate-900 p-8">
+      {/* Today's Decision — the true hero: the Enterprise Demo Experience's
+          entry point (before a demo starts) and its ongoing narration
+          (once one has). See components/TodaysDecision.tsx. */}
+      <div className="mt-6">
+        <TodaysDecision company={company} />
+      </div>
+
+      {/* Morning Executive Brief — company-wide context, now demoted below
+          Today's Decision: more meaningful once the hero has already shown
+          "your Digital Workforce already did this." */}
+      <section className="mt-10 rounded-xl bg-slate-900 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold text-white">Morning Executive Brief</h2>
           <span className={`inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold ${HEALTH_TONE[healthScore.label]}`}>
@@ -142,7 +141,7 @@ export default function DashboardPage() {
       <section className="mt-10">
         <SectionTitle
           title="Live Company Simulation"
-          description="A simulated stream of the kind of events this Digital Workforce reacts to as they happen — content is pre-generated and deterministic, only the reveal is timed for this demo."
+          description="A live stream of the kind of events this Digital Workforce reacts to as they happen."
         />
         <div className="rounded-xl bg-slate-900 p-6">
           <LiveActivityTicker events={simulatedEvents} />
@@ -160,19 +159,8 @@ export default function DashboardPage() {
 
       <section className="mt-10">
         <SectionTitle
-          title="Sales Order Pipeline"
-          description="Live status of the connected Sales -> Manager -> Finance workflow — updates automatically, no AI involved."
-        />
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <KpiCard title="Orders Pending Approval" value={deals.length === 0 ? "No active deals" : dealsPendingApproval.toString()} />
-          <KpiCard title="Orders Confirmed" value={deals.length === 0 ? "No active deals" : dealsConfirmed.toString()} />
-        </div>
-      </section>
-
-      <section className="mt-10">
-        <SectionTitle
           title="Company Intelligence"
-          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on — deterministic, no AI involved."
+          description="How much of the company's own knowledge is captured and ready for the Digital Workforce to draw on."
         />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard title="Knowledge Coverage" value={intelligence.totalDocuments === 0 ? "No data yet" : `${intelligence.coverageScore}/100`} />
@@ -187,7 +175,7 @@ export default function DashboardPage() {
           title="Experience AINEX with Your Company"
           description="You've seen the Demo Company. Now share one real document from your own — AINEX learns it live."
         />
-        <TeachAinexWizard liveAiEnabled={AiModeStore.isLiveModeEnabled()} />
+        <TeachAinexWizard />
         <div className="mt-4">
           <TeachAinexSessionStats />
         </div>
@@ -196,13 +184,15 @@ export default function DashboardPage() {
       <section className="mt-10">
         <SectionTitle
           title="Digital Workforce Activity Center"
-          description="Every Digital Worker's work today, in order — not waiting to be asked, and refreshed every time a new company is generated."
+          description="Every Digital Worker's work today, in order — not waiting to be asked."
         />
-        <div className="rounded-xl bg-slate-900 p-6">
-          <ActivityTimeline
-            entries={activityFeed.map((entry) => ({ time: entry.time, title: entry.workerName, description: entry.text }))}
-          />
-        </div>
+        <Expandable summary={`View all ${activityFeed.length} activity items`}>
+          <div className="rounded-xl bg-slate-900 p-6">
+            <ActivityTimeline
+              entries={activityFeed.map((entry) => ({ time: entry.time, title: entry.workerName, description: entry.text }))}
+            />
+          </div>
+        </Expandable>
       </section>
 
       <section className="mt-10">
@@ -261,7 +251,7 @@ export default function DashboardPage() {
       <section className="mt-10">
         <SectionTitle
           title="Pending Approvals"
-          description="Workflow runs waiting on human approval before they execute — read directly from the Workflow Layer, not fabricated for this view."
+          description="Workflow Automation runs waiting on human approval before they execute."
         />
         {approvalsRequired.length === 0 ? (
           <p className="text-sm text-slate-500">Nothing is waiting on approval right now.</p>
@@ -285,11 +275,13 @@ export default function DashboardPage() {
         {upcomingEvents.length === 0 ? (
           <p className="text-sm text-slate-500">Nothing scheduled.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {upcomingEvents.map((event) => (
-              <WorkflowCard key={event.id} name={event.title} description={event.date} />
-            ))}
-          </div>
+          <Expandable summary={`View all ${upcomingEvents.length} events`}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {upcomingEvents.map((event) => (
+                <WorkflowCard key={event.id} name={event.title} description={event.date} />
+              ))}
+            </div>
+          </Expandable>
         )}
       </section>
     </>

@@ -172,7 +172,7 @@ export default async function DocumentDetailPage({
       <section>
         <SectionTitle
           title="Knowledge Pipeline"
-          description="How this document has moved through the Enterprise Intelligence pipeline — architecture only, no AI provider is connected yet."
+          description="How this document has moved through the Enterprise Intelligence pipeline."
         />
         {pipelineResult ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
@@ -225,7 +225,7 @@ export default async function DocumentDetailPage({
       <section>
         <SectionTitle
           title="Executive Worker Summary"
-          description="The Executive Worker's read of this document — a deterministic preview when Live AI is off, a real AI-generated brief when it's on, always in the same shape."
+          description="The Executive Worker's read of this document."
         />
         <div className="rounded-xl bg-slate-900 p-6">
           <p className="text-sm text-slate-200">{intelligence.executiveSummary}</p>

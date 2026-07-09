@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import EnterpriseDemoProgress from "@/components/EnterpriseDemoProgress";
 import Sidebar from "@/components/Sidebar";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { FALLBACK_OWNER, resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
@@ -39,6 +40,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <EnterpriseDemoProgress company={company} />
         <div className="flex min-h-screen">
           <Sidebar industry={industry} size={size} users={sidebarUsers} currentUserId={currentUser.id} />
           <main className="flex-1 p-10">{children}</main>

@@ -79,6 +79,11 @@ class CompanyProfileStoreImpl {
     const { CurrentUserStore } = await import("@/lib/enterprise/CurrentUserStore");
     CurrentUserStore.clear();
 
+    // Same reasoning: the featured deal from any in-progress Enterprise
+    // Demo belonged to the previous company and no longer exists.
+    const { EnterpriseDemoStore } = await import("@/lib/enterprise/EnterpriseDemoStore");
+    EnterpriseDemoStore.reset();
+
     return this.selection;
   }
 

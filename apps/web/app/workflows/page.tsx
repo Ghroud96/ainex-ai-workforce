@@ -38,7 +38,7 @@ export default function WorkflowsPage() {
       <section className="mb-10">
         <SectionTitle
           title="Workflow Library"
-          description="Every workflow AINEX's Digital Workforce can trigger, architecture-ready behind the Workflow Layer — n8n is never called directly by a worker or the UI."
+          description="Every workflow AINEX's Digital Workforce can trigger to turn a decision into action."
         />
         <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           {library.map((workflow) => (
@@ -57,7 +57,7 @@ export default function WorkflowsPage() {
       <section className="mb-10">
         <SectionTitle
           title="Worker Recommended Workflows"
-          description="Workflows a Digital Worker's own Planning Engine can recommend triggering from a decision."
+          description="Workflows a Digital Worker can recommend triggering from a decision."
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {recommended.map((workflow) => (
@@ -75,7 +75,7 @@ export default function WorkflowsPage() {
       <section className="mb-10">
         <SectionTitle
           title="Scheduled Workflows"
-          description="Workflows with a time-based trigger. Architecture only — no scheduler executes these yet."
+          description="Workflows with a time-based trigger."
         />
         {scheduled.length === 0 ? (
           <p className="text-sm text-slate-500">No scheduled workflows.</p>
@@ -95,7 +95,7 @@ export default function WorkflowsPage() {
       <section className="mb-10">
         <SectionTitle
           title="Approval Required"
-          description="Workflow runs waiting on human approval before they execute — the same human-in-the-loop guarantee the Execution Engine applies to plan steps, applied here to workflow runs."
+          description="Workflow runs waiting on human approval before they execute."
         />
         <RunList runs={approvalsRequired} library={library} emptyLabel="No workflow runs are waiting on approval." />
       </section>
@@ -111,7 +111,7 @@ export default function WorkflowsPage() {
       <section>
         <SectionTitle
           title="Workflow Run History"
-          description="Every recorded workflow run, most recent first — mock data today; a real n8n instance will populate this the same way once activated (see docs/architecture/n8n-integration.md)."
+          description="Every recorded workflow run, most recent first."
         />
         <RunList runs={runHistory} library={library} emptyLabel="No workflow runs recorded yet." />
       </section>
@@ -138,7 +138,7 @@ function RunList({ runs, library, emptyLabel }: { runs: WorkflowRun[]; library: 
             <div>
               <p className="text-sm font-medium text-slate-200">{workflow?.name ?? run.workflowId}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Triggered by {run.triggeredBy} via {run.providerId} · {run.startedAt}
+                Triggered by {run.triggeredBy} · {run.startedAt}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Waiting for: {enriched.waitingFor} · Est. completion: {enriched.estimatedCompletion}

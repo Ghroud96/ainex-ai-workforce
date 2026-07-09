@@ -139,7 +139,7 @@ export function buildExecutiveBrief(company: GeneratedCompany): string[] {
     brief.push(`Sales identified ${atRisk.length} account${atRisk.length === 1 ? "" : "s"} at risk of churn — follow-up in progress.`);
   }
 
-  brief.push(`Recommendation: review today's Pending Approvals before end of day to keep the Workflow Layer moving.`);
+  brief.push(`Recommendation: review today's Pending Approvals before end of day to keep work moving.`);
 
   return brief;
 }
@@ -368,7 +368,7 @@ export function buildCollaborationChain(company: GeneratedCompany): Collaboratio
       roleTitle: "Automated Process",
       time: times[4],
       message: relevantWorkflow
-        ? `Triggered "${relevantWorkflow.name}" — routed through the Workflow Layer, never n8n directly — to carry the recommendation through to completion.`
+        ? `Triggered "${relevantWorkflow.name}" through Workflow Automation to carry the recommendation through to completion.`
         : `No workflow matched this case — the finding was routed straight to the Executive Worker.`,
     },
     {

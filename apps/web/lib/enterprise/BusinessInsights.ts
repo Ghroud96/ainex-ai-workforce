@@ -138,7 +138,7 @@ export function buildRecommendedActions(company: GeneratedCompany): RecommendedA
   }
 
   actions.push({
-    text: "Review today's Pending Approvals to keep the Workflow Layer moving.",
+    text: "Review today's Pending Approvals to keep work moving.",
     responsibleWorkerId: "executive",
     responsibleWorkerName: "Executive Worker",
     priority: "Low",
