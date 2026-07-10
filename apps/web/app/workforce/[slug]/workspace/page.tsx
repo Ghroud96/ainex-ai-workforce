@@ -126,52 +126,6 @@ export default async function WorkerWorkspacePage({
         <>
           <section>
             <SectionTitle
-              title="Today's Priorities"
-              description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
-            />
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
-              <KpiCard title="Priority Customers" value={urgentCustomerCount.toString()} />
-              <KpiCard title="Customers Requiring Follow-up" value={customersNeedingFollowUp.toString()} />
-              <KpiCard title="Meetings Today" value={meetingsToday.toString()} />
-              <KpiCard title="Pending Quotations" value={pendingQuotations.toString()} />
-              <KpiCard title="Pending Sales Orders" value={pendingSalesOrders.toString()} />
-            </div>
-          </section>
-
-          <section>
-            <SectionTitle
-              title="Business Monitor"
-              description="Who should I follow up today? Ranked automatically from real account data — no AI involved."
-            />
-            {priorityCustomers.length === 0 ? (
-              <div className="text-sm text-slate-500">
-                <p>No customers yet.</p>
-                <p>Import customers or connect CRM.</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {priorityCustomers.slice(0, 3).map((row) => (
-                    <PriorityRow key={row.customer.id} row={row} />
-                  ))}
-                </div>
-                {priorityCustomers.length > 3 && (
-                  <div className="mt-3">
-                    <Expandable summary={`View all ${priorityCustomers.length} priorities`}>
-                      <div className="space-y-3">
-                        {priorityCustomers.slice(3).map((row) => (
-                          <PriorityRow key={row.customer.id} row={row} />
-                        ))}
-                      </div>
-                    </Expandable>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-
-          <section>
-            <SectionTitle
               title="My Deals"
               description="Every step may optionally use AI. Review each result before continuing — AI assists, you decide."
             />
@@ -233,6 +187,52 @@ export default async function WorkerWorkspacePage({
               )}
             </section>
           )}
+
+          <section>
+            <SectionTitle
+              title="Business Monitor"
+              description="Who should I follow up today? Ranked automatically from real account data — no AI involved."
+            />
+            {priorityCustomers.length === 0 ? (
+              <div className="text-sm text-slate-500">
+                <p>No customers yet.</p>
+                <p>Import customers or connect CRM.</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {priorityCustomers.slice(0, 3).map((row) => (
+                    <PriorityRow key={row.customer.id} row={row} />
+                  ))}
+                </div>
+                {priorityCustomers.length > 3 && (
+                  <div className="mt-3">
+                    <Expandable summary={`View all ${priorityCustomers.length} priorities`}>
+                      <div className="space-y-3">
+                        {priorityCustomers.slice(3).map((row) => (
+                          <PriorityRow key={row.customer.id} row={row} />
+                        ))}
+                      </div>
+                    </Expandable>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          <section>
+            <SectionTitle
+              title="Today's Priorities"
+              description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
+            />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+              <KpiCard title="Priority Customers" value={urgentCustomerCount.toString()} />
+              <KpiCard title="Customers Requiring Follow-up" value={customersNeedingFollowUp.toString()} />
+              <KpiCard title="Meetings Today" value={meetingsToday.toString()} />
+              <KpiCard title="Pending Quotations" value={pendingQuotations.toString()} />
+              <KpiCard title="Pending Sales Orders" value={pendingSalesOrders.toString()} />
+            </div>
+          </section>
         </>
       )}
 

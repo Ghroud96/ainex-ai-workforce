@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Expandable from "@/components/Expandable";
 import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
@@ -165,14 +166,16 @@ export default async function WorkerIntelligencePage({
           title="Worker Memory"
           description="What this Digital Worker remembers across conversations and tasks."
         />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
-          {["Short Term", "Conversation", "Company", "Knowledge", "Long Term"].map((memoryType) => (
-            <div key={memoryType} className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-500">
-              <p className="font-medium text-slate-400">{memoryType} Memory</p>
-              <p className="mt-1 text-xs">Not yet populated</p>
-            </div>
-          ))}
-        </div>
+        <Expandable summary="View memory types">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
+            {["Short Term", "Conversation", "Company", "Knowledge", "Long Term"].map((memoryType) => (
+              <div key={memoryType} className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-500">
+                <p className="font-medium text-slate-400">{memoryType} Memory</p>
+                <p className="mt-1 text-xs">Not yet populated</p>
+              </div>
+            ))}
+          </div>
+        </Expandable>
       </section>
 
       <section>
@@ -217,12 +220,14 @@ export default async function WorkerIntelligencePage({
           title="Execution Results"
           description="How the plan above is carried out, step by step."
         />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <ExecutionStepGroup title="Pending Actions" steps={pendingSteps} />
-          <ExecutionStepGroup title="Approval Required" steps={approvalSteps} />
-          <ExecutionStepGroup title="Completed Steps" steps={completedSteps} />
-          <ExecutionStepGroup title="Failed Steps" steps={failedSteps} />
-        </div>
+        <Expandable summary="View execution results">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ExecutionStepGroup title="Pending Actions" steps={pendingSteps} />
+            <ExecutionStepGroup title="Approval Required" steps={approvalSteps} />
+            <ExecutionStepGroup title="Completed Steps" steps={completedSteps} />
+            <ExecutionStepGroup title="Failed Steps" steps={failedSteps} />
+          </div>
+        </Expandable>
       </section>
 
       <section>
@@ -230,19 +235,21 @@ export default async function WorkerIntelligencePage({
           title="Execution Timeline"
           description="Chronological record of this run."
         />
-        <div className="rounded-xl bg-slate-900 p-6">
-          {!intelligence || intelligence.execution.timeline.length === 0 ? (
-            <p className="text-sm text-slate-500">No recorded activity yet.</p>
-          ) : (
-            <div className="space-y-2 text-sm text-slate-300">
-              {intelligence.execution.timeline.map((entry, index) => (
-                <p key={index}>
-                  <span className="text-slate-500">{entry.timestamp}</span> — {entry.message}
-                </p>
-              ))}
+        {!intelligence || intelligence.execution.timeline.length === 0 ? (
+          <p className="text-sm text-slate-500">No recorded activity yet.</p>
+        ) : (
+          <Expandable summary={`View ${intelligence.execution.timeline.length} timeline entries`}>
+            <div className="rounded-xl bg-slate-900 p-6">
+              <div className="space-y-2 text-sm text-slate-300">
+                {intelligence.execution.timeline.map((entry, index) => (
+                  <p key={index}>
+                    <span className="text-slate-500">{entry.timestamp}</span> — {entry.message}
+                  </p>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+          </Expandable>
+        )}
       </section>
 
       <section>
@@ -285,11 +292,13 @@ export default async function WorkerIntelligencePage({
         {recentWorkflowRuns.length === 0 ? (
           <p className="text-sm text-slate-500">No workflow runs recorded yet.</p>
         ) : (
-          <div className="space-y-2">
-            {recentWorkflowRuns.map((run) => (
-              <WorkflowRunRow key={run.id} run={run} />
-            ))}
-          </div>
+          <Expandable summary={`View ${recentWorkflowRuns.length} recent runs`}>
+            <div className="space-y-2">
+              {recentWorkflowRuns.map((run) => (
+                <WorkflowRunRow key={run.id} run={run} />
+              ))}
+            </div>
+          </Expandable>
         )}
       </section>
     </>

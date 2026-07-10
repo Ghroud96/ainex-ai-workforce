@@ -148,14 +148,17 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <div key={kpi.title} className="flex flex-col">
-            <KpiCard title={kpi.title} value={kpi.value} trend={kpi.trend} />
-            {kpi.whyChanged && <p className="mt-2 px-1 text-xs text-slate-500">{kpi.whyChanged}</p>}
-          </div>
-        ))}
-      </div>
+      <section className="mt-10">
+        <SectionTitle title="Business at a Glance" description="The numbers behind this morning's brief." />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map((kpi) => (
+            <div key={kpi.title} className="flex flex-col">
+              <KpiCard title={kpi.title} value={kpi.value} trend={kpi.trend} />
+              {kpi.whyChanged && <p className="mt-2 px-1 text-xs text-slate-500">{kpi.whyChanged}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="mt-10">
         <SectionTitle
@@ -205,17 +208,19 @@ export default function DashboardPage() {
             No collaboration activity yet — invite employees and add customers to see the Digital Workforce work together.
           </p>
         ) : (
-          <div className="rounded-xl bg-slate-900 p-6">
-            <ActivityTimeline
-              entries={collaboration.map((step) => ({
-                time: step.time,
-                title: step.workerName,
-                subtitle: step.roleTitle,
-                description: step.message,
-                accent: step.workerId === "workflow" ? "workflow" : "default",
-              }))}
-            />
-          </div>
+          <Expandable summary={`See how ${collaboration.length} Digital Workers worked this case together`}>
+            <div className="rounded-xl bg-slate-900 p-6">
+              <ActivityTimeline
+                entries={collaboration.map((step) => ({
+                  time: step.time,
+                  title: step.workerName,
+                  subtitle: step.roleTitle,
+                  description: step.message,
+                  accent: step.workerId === "workflow" ? "workflow" : "default",
+                }))}
+              />
+            </div>
+          </Expandable>
         )}
       </section>
 

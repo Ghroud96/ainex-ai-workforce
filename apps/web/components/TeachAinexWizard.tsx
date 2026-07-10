@@ -170,46 +170,53 @@ export default function TeachAinexWizard() {
             )}
 
             {step === "analysis" && result && (
-              <div className="mt-6 space-y-4">
-                <div>
+              <div className="mt-6 space-y-5">
+                <div className="rounded-lg bg-slate-800/60 p-4">
                   <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Executive Summary</p>
-                  <p className="mt-1 text-sm text-slate-300">{result.intelligence.executiveSummary}</p>
+                  <p className="mt-1 text-sm text-slate-200">{result.intelligence.executiveSummary}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Key Findings</p>
-                  <ul className="mt-1 space-y-1 text-sm text-slate-300">
-                    {result.intelligence.keyFindings.map((finding, index) => (
-                      <li key={index}>• {finding}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Risks</p>
-                  <ul className="mt-1 space-y-1 text-sm text-slate-300">
-                    {result.intelligence.businessRisks.map((risk, index) => (
-                      <li key={index}>• {risk}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Opportunities</p>
-                  <ul className="mt-1 space-y-1 text-sm text-slate-300">
-                    {result.intelligence.businessOpportunities.map((opportunity, index) => (
-                      <li key={index}>• {opportunity}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Recommended Actions</p>
-                  <ul className="mt-1 space-y-1 text-sm text-slate-300">
-                    {result.intelligence.recommendedActions.map((action, index) => (
-                      <li key={index}>• {action}</li>
-                    ))}
-                  </ul>
-                </div>
-                <p className="text-sm text-slate-300">{result.intelligence.executiveConclusion}</p>
 
-                <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Key Findings</p>
+                    <ul className="mt-1 space-y-1 text-sm text-slate-300">
+                      {result.intelligence.keyFindings.map((finding, index) => (
+                        <li key={index}>• {finding}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Risks</p>
+                    <ul className="mt-1 space-y-1 text-sm text-slate-300">
+                      {result.intelligence.businessRisks.map((risk, index) => (
+                        <li key={index}>• {risk}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Business Opportunities</p>
+                    <ul className="mt-1 space-y-1 text-sm text-slate-300">
+                      {result.intelligence.businessOpportunities.map((opportunity, index) => (
+                        <li key={index}>• {opportunity}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Recommended Actions</p>
+                    <ul className="mt-1 space-y-1 text-sm text-slate-300">
+                      {result.intelligence.recommendedActions.map((action, index) => (
+                        <li key={index}>• {action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <p className="border-t border-slate-800 pt-4 text-sm text-slate-400">
+                  <span className="font-medium text-slate-300">Executive Conclusion: </span>
+                  {result.intelligence.executiveConclusion}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
                   <TagBadge label={`Department: ${result.intelligence.suggestedDepartment}`} />
                   <TagBadge label={`Category: ${result.intelligence.suggestedCategory}`} />
                   <span

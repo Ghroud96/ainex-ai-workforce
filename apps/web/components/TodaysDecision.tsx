@@ -23,7 +23,7 @@ export default function TodaysDecision({
 
   if (!snapshot) {
     return (
-      <div className="rounded-xl bg-slate-900 p-8 text-center">
+      <div className="rounded-xl border border-blue-500/20 bg-slate-900 p-8 text-center">
         <p className="text-lg font-semibold text-white">See how AINEX runs {company.profile.name} today</p>
         <form action={startEnterpriseDemo} className="mt-4">
           <button
@@ -53,7 +53,7 @@ export default function TodaysDecision({
   }
 
   return (
-    <div className="rounded-xl bg-slate-900 p-8">
+    <div className="rounded-xl border border-blue-500/20 bg-slate-900 p-8">
       <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Today&apos;s Decision</p>
       <h2 className="mt-2 text-2xl font-bold text-white">{snapshot.decision}</h2>
       <p className="mt-3 text-sm text-slate-300">{snapshot.whyItMatters}</p>
