@@ -7,7 +7,9 @@ import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
 import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
+import { isPresentingAs } from "@/lib/enterprise/PresentationModeStore";
 import { runDealTouchpoint } from "@/lib/sales/DealAiService";
+import { SalesDealService } from "@/lib/sales/SalesDealService";
 import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 import { STAGE_CONFIG, type DealStage, type DealTouchpointId, type SalesDeal } from "@/lib/sales/SalesDealTypes";
 
@@ -25,6 +27,30 @@ function isFinanceUser(user: EnterpriseUser): boolean {
 // aiActions.ts's canAccessWorker check.
 function isDealOwner(user: EnterpriseUser, ownerUserId: string): boolean {
   return user.id === ownerUserId;
+}
+
+// Priority Customer -> Follow-Up Activity: the one place a SalesDeal is
+// ever created at runtime (see lib/sales/SalesDealService.ts). A rep-level
+// action, so it keeps the ordinary authorizedOrDemoMode bypass — unlike
+// managerDecision/financeDecision below, this was never the "appears to
+// approve their own order" problem.
+export async function startWork(formData: FormData): Promise<void> {
+  const customerId = formData.get("customerId");
+  if (typeof customerId !== "string" || customerId.length === 0) {
+    throw new Error("A customer is required.");
+  }
+
+  const { company } = CompanyProfileStore.getCurrent();
+  const currentUser = resolveCurrentUser(company);
+
+  const authorized = authorizedOrDemoMode(currentUser.departmentWorkerId === "sales");
+  if (!authorized) {
+    throw new Error("You do not have permission to execute this Digital Worker.");
+  }
+
+  SalesDealService.startWork(customerId, currentUser.id);
+
+  revalidatePath("/workforce/sales/workspace");
 }
 
 // Runs one of the 8 AI touchpoints for a deal — always exactly one AI
@@ -68,7 +94,7 @@ export async function runDealAi(formData: FormData): Promise<void> {
   // Step" click (advanceDeal), so the result is guaranteed to render
   // before the deal can move on.
   const result = await runDealTouchpoint(touchpointId, deal, customer, company, currentUser);
-  SalesDealStore.recordAiResult(dealId, touchpointId, result);
+  SalesDealService.recordAiResult(dealId, touchpointId, result);
 
   revalidatePath("/workforce/sales/workspace");
   revalidatePath("/workforce/finance/workspace");
@@ -96,7 +122,7 @@ export async function advanceDeal(formData: FormData): Promise<void> {
   const stageConfig = STAGE_CONFIG[deal.stage];
   if (!stageConfig.nextStage) throw new Error("This deal has no next step available at its current stage.");
 
-  SalesDealStore.advance(dealId, stageConfig.nextStage, stageConfig.nextStepLabel ?? "Advanced.");
+  SalesDealService.advanceDeal(dealId, stageConfig.nextStage, stageConfig.nextStepLabel ?? "Advanced.");
   revalidatePath("/workforce/sales/workspace");
 }
 
@@ -109,16 +135,20 @@ const MANAGER_OUTCOME_STAGE: Record<ManagerOutcome, DealStage> = {
 
 // The reference consumer of the shared approval framework — see
 // lib/approvals/StageDecisionAction.ts and
-// docs/architecture/approval-workflow-engine.md. Every future workflow's
-// decision action should look like this: entity/stage plumbing only, no
-// re-implemented gating, auth-bypass, or error handling.
+// docs/architecture/approval-workflow-engine.md. isAuthorized checks the
+// real Sales Manager role OR the "Presenting: Sales Manager" lens
+// (isPresentingAs — only ever true in Demo Mode; see
+// lib/enterprise/PresentationModeStore.ts) instead of the old blanket
+// isDemoModeEnabled() bypass, so this decision is only reachable from the
+// Manager Approval view a presenter explicitly switched into, never from
+// the Sales Executive's own My Deals panel.
 export const managerDecision = createStageDecisionAction<SalesDeal, DealStage, ManagerOutcome>({
   requiredStage: "pending-manager-approval",
   outcomeToStage: MANAGER_OUTCOME_STAGE,
   getEntity: (id) => SalesDealStore.get(id),
   getStage: (deal) => deal.stage,
-  isAuthorized: (user) => authorizedOrDemoMode(isSalesManager(user)),
-  advance: (id, nextStage, note) => SalesDealStore.advance(id, nextStage, note),
+  isAuthorized: (user) => isSalesManager(user) || isPresentingAs("sales-manager"),
+  advance: (id, nextStage, note) => SalesDealService.advanceDeal(id, nextStage, note),
   buildNote: (outcome, user) => `Manager ${outcome}d by ${user.name}.`,
   revalidate: () => {
     revalidatePath("/workforce/sales/workspace");
@@ -141,8 +171,8 @@ export const financeDecision = createStageDecisionAction<SalesDeal, DealStage, F
   outcomeToStage: FINANCE_OUTCOME_STAGE,
   getEntity: (id) => SalesDealStore.get(id),
   getStage: (deal) => deal.stage,
-  isAuthorized: (user) => authorizedOrDemoMode(isFinanceUser(user)),
-  advance: (id, nextStage, note) => SalesDealStore.advance(id, nextStage, note),
+  isAuthorized: (user) => isFinanceUser(user) || isPresentingAs("finance"),
+  advance: (id, nextStage, note) => SalesDealService.advanceDeal(id, nextStage, note),
   buildNote: (outcome, user) => `Finance ${outcome}d by ${user.name}.`,
   revalidate: () => {
     revalidatePath("/workforce/finance/workspace");

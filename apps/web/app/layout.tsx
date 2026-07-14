@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import EnterpriseDemoProgress from "@/components/EnterpriseDemoProgress";
 import Sidebar from "@/components/Sidebar";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { FALLBACK_OWNER, resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
+import { PresentationModeStore } from "@/lib/enterprise/PresentationModeStore";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,6 +35,8 @@ export default function RootLayout({
   // dropdown must still show at least the implicit account holder that
   // resolveCurrentUser() would have resolved to.
   const sidebarUsers = company.enterpriseUsers.length > 0 ? company.enterpriseUsers : [FALLBACK_OWNER];
+  const isDemoModeEnabled = CompanyModeStore.isDemoModeEnabled();
+  const presentationRole = PresentationModeStore.get() ?? "sales-rep";
 
   return (
     <html
@@ -42,7 +46,14 @@ export default function RootLayout({
       <body className="min-h-full">
         <EnterpriseDemoProgress company={company} />
         <div className="flex min-h-screen">
-          <Sidebar industry={industry} size={size} users={sidebarUsers} currentUserId={currentUser.id} />
+          <Sidebar
+            industry={industry}
+            size={size}
+            users={sidebarUsers}
+            currentUserId={currentUser.id}
+            isDemoModeEnabled={isDemoModeEnabled}
+            presentationRole={presentationRole}
+          />
           <main className="flex-1 p-10">{children}</main>
         </div>
       </body>

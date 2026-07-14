@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import ActivityTimeline from "@/components/ActivityTimeline";
 import Expandable from "@/components/Expandable";
 import ExecutionRestrictedNotice from "@/components/ExecutionRestrictedNotice";
+import FollowUpExecutionDialog from "@/components/sales/FollowUpExecutionDialog";
 import KpiCard from "@/components/KpiCard";
 import PriorityBadge from "@/components/PriorityBadge";
 import SectionTitle from "@/components/SectionTitle";
@@ -8,7 +10,10 @@ import TagBadge from "@/components/TagBadge";
 import TodaysDecision from "@/components/TodaysDecision";
 import WorkflowStepPanel from "@/components/WorkflowStepPanel";
 import { analyzeDocumentAsWorker } from "@/app/workforce/aiActions";
+import { startWork } from "@/app/workforce/dealActions";
+import { executeSalesFollowUp } from "@/app/workforce/executionActions";
 import { getAllDocuments, type DigitalDocument } from "@/data/documents";
+import { buildCompanyTimeline, toTimelineEntry } from "@/lib/enterprise/CompanyTimeline";
 import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
 import { resolveCurrentUser } from "@/lib/enterprise/CurrentUserStore";
@@ -16,16 +21,19 @@ import { EnterpriseDemoStore } from "@/lib/enterprise/EnterpriseDemoStore";
 import { canAccessWorker, type DepartmentWorkerId } from "@/lib/enterprise/EnterpriseUserTypes";
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
 import { buildCollaborationChain, buildTodaysActivity } from "@/lib/enterprise/NarrativeBuilder";
+import { isPresentingAs } from "@/lib/enterprise/PresentationModeStore";
+import { getTodaysPriorities, type PriorityCustomerRow } from "@/lib/sales/PriorityEngine";
 import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 import { STAGE_CONFIG, type SalesDeal } from "@/lib/sales/SalesDealTypes";
-import { rankPriorityCustomers, type PriorityCustomerRow } from "@/lib/sales/SalesPriorityBuilder";
+import { buildFollowUpMessage } from "@/lib/sales/execution/SalesFollowUpMessage";
+import { SalesFollowUpExecutionStore } from "@/lib/sales/execution/SalesFollowUpExecutionStore";
 import { WORKER_ANALYSIS_GROUPING } from "@/lib/services/knowledge/WorkerAnalysisGrouping";
 import { WorkerAnalysisResultStore } from "@/lib/services/knowledge/WorkerAnalysisResultStore";
 import type { PersonaId, WorkerAnalysisResult } from "@/lib/services/knowledge/WorkerAnalysisService";
 import { WorkforceService } from "@/services/workforce/WorkforceService";
 
 // "sales" deliberately excluded — its Worker AI Analysis section is
-// replaced entirely by the Sales Workspace (Business Monitor + connected
+// replaced entirely by the Sales Workspace (Today's Priorities + connected
 // deal workflow) below, per Enterprise Demo V1.
 const AI_ANALYSIS_PERSONA_IDS: readonly string[] = ["executive", "finance", "inventory", "hr"];
 
@@ -53,19 +61,22 @@ export default async function WorkerWorkspacePage({
   const hasExecuteAccess =
     canAccessWorker(currentUser, workerInstance.id as DepartmentWorkerId) || CompanyModeStore.isDemoModeEnabled();
 
-  // Enterprise Demo V1 — the connected Sales -> Manager -> Finance story.
-  // In Demo Company Mode, the current simulated user can act at every
-  // stage of that story without switching users — see CompanyModeStore.ts.
+  // Real role, OR the "Presenting:" lens — which is only ever non-null in
+  // Demo Mode (see lib/enterprise/PresentationModeStore.ts). Live Company
+  // always resolves the real logged-in user's real role; no blanket
+  // isDemoModeEnabled() bypass reaches Manager/Finance authorization
+  // anymore.
   const isSalesManager =
-    (currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff") ||
-    CompanyModeStore.isDemoModeEnabled();
-  const priorityCustomers = workerInstance.id === "sales" ? rankPriorityCustomers(company, currentUser) : [];
+    (currentUser.departmentWorkerId === "sales" && currentUser.roleLevel !== "Staff") || isPresentingAs("sales-manager");
+  const isFinanceUser = currentUser.departmentWorkerId === "finance" || isPresentingAs("finance");
+
+  const todaysPriorities = workerInstance.id === "sales" ? getTodaysPriorities(company, currentUser) : [];
   const allDeals = workerInstance.id === "sales" || workerInstance.id === "finance" ? SalesDealStore.listFor(company) : [];
-  // Demo-mode bypassed the same way every other gate on this page already
-  // is (isSalesManager above, canAct below) — without this, a presenter
-  // driving the Enterprise Demo's featured opportunity through its
-  // Sales-Rep-owned stages would need to switch to that deal's actual
-  // owner first, the one remaining reason a user switch was ever required.
+  // Demo-mode bypassed so a presenter driving the featured opportunity
+  // through its Sales-Rep-owned stages doesn't need to switch to that
+  // deal's actual owner first — this only affects which deals are
+  // *visible* in My Deals, never who can act on them (canAct, on
+  // DealPanel below, never bypasses real ownership).
   const myDeals = workerInstance.id === "sales"
     ? allDeals.filter((deal) => deal.ownerUserId === currentUser.id || CompanyModeStore.isDemoModeEnabled())
     : [];
@@ -78,13 +89,14 @@ export default async function WorkerWorkspacePage({
   const dealsAwaitingManager = workerInstance.id === "sales" && isSalesManager
     ? allDeals.filter((deal) => deal.stage === "pending-manager-approval")
     : [];
-  const dealsAwaitingFinance = workerInstance.id === "finance" ? allDeals.filter((deal) => deal.stage === "pending-finance-review") : [];
+  const dealsAwaitingFinance =
+    workerInstance.id === "finance" ? allDeals.filter((deal) => deal.stage === "pending-finance-review") : [];
 
   // Sales Workspace home-screen summary — "what do I need to work on
   // today," computed from data already derived above. Zero AI, orthogonal
   // to Company Mode (read-only counts, not gated actions).
   const todayIso = new Date().toISOString().slice(0, 10);
-  const urgentCustomerCount = priorityCustomers.filter(
+  const urgentCustomerCount = todaysPriorities.filter(
     (row) => row.priority === "Critical" || row.priority === "High",
   ).length;
   const customersNeedingFollowUp = myDeals.filter((deal) => deal.stage === "follow-up-needed").length;
@@ -96,6 +108,16 @@ export default async function WorkerWorkspacePage({
 
   const todaysActivity = buildTodaysActivity(workerInstance.id, company);
   const collaborationStep = buildCollaborationChain(company).find((step) => step.workerId === workerInstance.id);
+
+  // Company Timeline — real product data (lib/enterprise/CompanyTimeline.ts),
+  // not demo-only. Sales is its only real source today; Finance reads the
+  // same feed rather than maintaining a separate one.
+  const recentActivity =
+    workerInstance.id === "sales" || workerInstance.id === "finance"
+      ? buildCompanyTimeline(company)
+          .slice(0, 15)
+          .map((event) => toTimelineEntry(event, company))
+      : [];
 
   return (
     <>
@@ -161,11 +183,16 @@ export default async function WorkerWorkspacePage({
           </section>
 
           {isSalesManager && (
-            <section>
+            <section id="manager-approval">
               <SectionTitle
                 title="Manager Approval"
                 description="Sales orders from your team awaiting your decision."
               />
+              {isPresentingAs("sales-manager") && (
+                <p className="mb-4 inline-block rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
+                  Presenting: Sales Manager View
+                </p>
+              )}
               {dealsAwaitingManager.length === 0 ? (
                 <p className="text-sm text-slate-500">Nothing is awaiting your approval right now.</p>
               ) : (
@@ -190,10 +217,10 @@ export default async function WorkerWorkspacePage({
 
           <section>
             <SectionTitle
-              title="Business Monitor"
-              description="Who should I follow up today? Ranked automatically from real account data — no AI involved."
+              title="Today's Priorities"
+              description="What Sales should work on today — ranked automatically from real account data."
             />
-            {priorityCustomers.length === 0 ? (
+            {todaysPriorities.length === 0 ? (
               <div className="text-sm text-slate-500">
                 <p>No customers yet.</p>
                 <p>Import customers or connect CRM.</p>
@@ -201,16 +228,28 @@ export default async function WorkerWorkspacePage({
             ) : (
               <>
                 <div className="space-y-3">
-                  {priorityCustomers.slice(0, 3).map((row) => (
-                    <PriorityRow key={row.customer.id} row={row} />
+                  {todaysPriorities.slice(0, 3).map((row) => (
+                    <PriorityRow
+                      key={row.customer.id}
+                      row={row}
+                      canExecute={hasExecuteAccess}
+                      currentUserId={currentUser.id}
+                      company={company}
+                    />
                   ))}
                 </div>
-                {priorityCustomers.length > 3 && (
+                {todaysPriorities.length > 3 && (
                   <div className="mt-3">
-                    <Expandable summary={`View all ${priorityCustomers.length} priorities`}>
+                    <Expandable summary={`View all ${todaysPriorities.length} priorities`}>
                       <div className="space-y-3">
-                        {priorityCustomers.slice(3).map((row) => (
-                          <PriorityRow key={row.customer.id} row={row} />
+                        {todaysPriorities.slice(3).map((row) => (
+                          <PriorityRow
+                            key={row.customer.id}
+                            row={row}
+                            canExecute={hasExecuteAccess}
+                            currentUserId={currentUser.id}
+                            company={company}
+                          />
                         ))}
                       </div>
                     </Expandable>
@@ -222,7 +261,7 @@ export default async function WorkerWorkspacePage({
 
           <section>
             <SectionTitle
-              title="Today's Priorities"
+              title="Today's Snapshot"
               description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
             />
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
@@ -233,40 +272,75 @@ export default async function WorkerWorkspacePage({
               <KpiCard title="Pending Sales Orders" value={pendingSalesOrders.toString()} />
             </div>
           </section>
+
+          <section>
+            <SectionTitle
+              title="Recent Activity"
+              description="A running record of calls, meetings, quotations, and decisions — the start of the Company Timeline."
+            />
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-slate-500">No activity recorded yet.</p>
+            ) : (
+              <div className="rounded-xl bg-slate-900 p-6">
+                <ActivityTimeline entries={recentActivity} />
+              </div>
+            )}
+          </section>
         </>
       )}
 
       {workerInstance.id === "finance" && (
-        <section>
-          <SectionTitle
-            title="Finance Review"
-            description="Approved sales orders awaiting finance sign-off before the order is confirmed."
-          />
-          {!hasExecuteAccess ? (
-            <ExecutionRestrictedNotice />
-          ) : (
-            <div className="space-y-4">
-              <TodaysDecision company={company} variant="compact" minScreenIndex={2} />
-              {dealsAwaitingFinance.length === 0 ? (
-                <p className="text-sm text-slate-500">Nothing is awaiting finance review right now.</p>
-              ) : (
-                dealsAwaitingFinance.map((deal) => {
-                  const customer = company.customers.find((c) => c.id === deal.customerId);
-                  const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
-                  return (
-                    <WorkflowStepPanel
-                      key={deal.id}
-                      deal={deal}
-                      customerName={customer?.name ?? "Unknown customer"}
-                      ownerName={owner?.name ?? "Unknown"}
-                      canAct
-                    />
-                  );
-                })
-              )}
-            </div>
-          )}
-        </section>
+        <>
+          <section>
+            <SectionTitle
+              title="Finance Review"
+              description="Approved sales orders awaiting finance sign-off before the order is confirmed."
+            />
+            {!hasExecuteAccess ? (
+              <ExecutionRestrictedNotice />
+            ) : (
+              <div className="space-y-4">
+                <TodaysDecision company={company} variant="compact" minScreenIndex={2} />
+                {isPresentingAs("finance") && (
+                  <p className="inline-block rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
+                    Presenting: Finance View
+                  </p>
+                )}
+                {dealsAwaitingFinance.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nothing is awaiting finance review right now.</p>
+                ) : (
+                  dealsAwaitingFinance.map((deal) => {
+                    const customer = company.customers.find((c) => c.id === deal.customerId);
+                    const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
+                    return (
+                      <WorkflowStepPanel
+                        key={deal.id}
+                        deal={deal}
+                        customerName={customer?.name ?? "Unknown customer"}
+                        ownerName={owner?.name ?? "Unknown"}
+                        canAct={isFinanceUser}
+                      />
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <SectionTitle
+              title="Recent Activity"
+              description="A running record of calls, meetings, quotations, and decisions — the start of the Company Timeline."
+            />
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-slate-500">No activity recorded yet.</p>
+            ) : (
+              <div className="rounded-xl bg-slate-900 p-6">
+                <ActivityTimeline entries={recentActivity} />
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {AI_ANALYSIS_PERSONA_IDS.includes(workerInstance.id) && (
@@ -303,7 +377,22 @@ export default async function WorkerWorkspacePage({
   );
 }
 
-function PriorityRow({ row }: { row: PriorityCustomerRow }) {
+function PriorityRow({
+  row,
+  canExecute,
+  currentUserId,
+  company,
+}: {
+  row: PriorityCustomerRow;
+  canExecute: boolean;
+  currentUserId: string;
+  company: GeneratedCompany;
+}) {
+  const existingDeal = row.dealId ? SalesDealStore.get(row.dealId) : undefined;
+  const ownerName = existingDeal
+    ? company.enterpriseUsers.find((user) => user.id === existingDeal.ownerUserId)?.name
+    : undefined;
+
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -313,10 +402,47 @@ function PriorityRow({ row }: { row: PriorityCustomerRow }) {
         </div>
         <PriorityBadge priority={row.priority} />
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 rounded-lg bg-slate-800/60 p-3">
+        <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">AI Recommendation</p>
+        <p className="mt-1 text-sm text-slate-300">{row.aiRecommendation}</p>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <TagBadge label={`Opportunity: ${row.estimatedOpportunity.toLocaleString()}`} />
         <TagBadge label={`Last interaction: ${row.lastInteraction}`} />
         <TagBadge label={row.suggestedAction} />
+        {canExecute && (
+          <>
+            {!existingDeal ? (
+              <form action={startWork}>
+                <input type="hidden" name="customerId" value={row.customer.id} />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
+                >
+                  Start Work
+                </button>
+              </form>
+            ) : existingDeal.ownerUserId === currentUserId ? (
+              <a
+                href={`#deal-${existingDeal.id}`}
+                className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
+              >
+                Continue Work →
+              </a>
+            ) : (
+              <TagBadge label={`In progress with ${ownerName ?? "someone"}`} />
+            )}
+            <FollowUpExecutionDialog
+              customerId={row.customer.id}
+              customerName={row.customer.name}
+              message={buildFollowUpMessage(row)}
+              channel="Email"
+              reason={row.followUpReason}
+              initialRecord={SalesFollowUpExecutionStore.getLatestForCustomer(row.customer.id)}
+              action={executeSalesFollowUp}
+            />
+          </>
+        )}
       </div>
     </div>
   );
@@ -334,19 +460,20 @@ function DealPanel({
   const customer = company.customers.find((c) => c.id === deal.customerId);
   const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
   return (
-    <WorkflowStepPanel
-      deal={deal}
-      customerName={customer?.name ?? "Unknown customer"}
-      ownerName={owner?.name ?? "Unknown"}
-      // A rep still sees their own deal once it's with the Manager or
-      // Finance (tracking progress), but can't act on it — that's not
-      // their stage anymore. In Demo Company Mode this restriction is
-      // bypassed so the whole story can be walked without switching users.
-      canAct={
-        (deal.ownerUserId === currentUserId && STAGE_CONFIG[deal.stage].responsibleRole === "Sales Rep") ||
-        CompanyModeStore.isDemoModeEnabled()
-      }
-    />
+    <div id={`deal-${deal.id}`}>
+      <WorkflowStepPanel
+        deal={deal}
+        customerName={customer?.name ?? "Unknown customer"}
+        ownerName={owner?.name ?? "Unknown"}
+        // Real ownership only — no demo-mode bypass, in Demo Mode or Live
+        // Company. A rep still sees their own deal once it's with the
+        // Manager or Finance (showContinuePrompt below points them to the
+        // right review venue) but can never act on it from here — that's
+        // not their stage anymore.
+        canAct={deal.ownerUserId === currentUserId && STAGE_CONFIG[deal.stage].responsibleRole === "Sales Rep"}
+        showContinuePrompt
+      />
+    </div>
   );
 }
 

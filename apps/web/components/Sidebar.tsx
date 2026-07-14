@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import PresentationRoleSwitcher from "@/components/PresentationRoleSwitcher";
 import ScenarioSwitcher from "@/components/ScenarioSwitcher";
 import UserSwitcher from "@/components/UserSwitcher";
 import type { CompanySize, Industry } from "@/lib/enterprise/EnterpriseTypes";
 import type { EnterpriseUser } from "@/lib/enterprise/EnterpriseUserTypes";
+import type { PresentationRole } from "@/lib/enterprise/PresentationModeStore";
 
 const navItems = [
   { label: "Executive Intelligence", href: "/dashboard" },
@@ -25,11 +27,15 @@ export default function Sidebar({
   size,
   users,
   currentUserId,
+  isDemoModeEnabled,
+  presentationRole,
 }: {
   industry: Industry;
   size: CompanySize;
   users: EnterpriseUser[];
   currentUserId: string;
+  isDemoModeEnabled: boolean;
+  presentationRole: PresentationRole;
 }) {
   const pathname = usePathname();
 
@@ -72,6 +78,7 @@ export default function Sidebar({
 
       <ScenarioSwitcher industry={industry} size={size} />
       <UserSwitcher users={users} currentUserId={currentUserId} />
+      {isDemoModeEnabled && <PresentationRoleSwitcher role={presentationRole} />}
     </aside>
   );
 }

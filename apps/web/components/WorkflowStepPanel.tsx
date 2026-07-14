@@ -1,7 +1,10 @@
 import { advanceDeal, financeDecision, managerDecision, runDealAi } from "@/app/workforce/dealActions";
+import { setPresentationRole } from "@/app/settings/presentationRoleActions";
 import StageDecisionActions from "@/components/approvals/StageDecisionActions";
 import DealStageStepper from "@/components/DealStageStepper";
 import TagBadge from "@/components/TagBadge";
+import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
+import { getDealPhase } from "@/lib/sales/SalesDealPhase";
 import { getTouchpointLabel } from "@/lib/sales/DealAiService";
 import { STAGE_CONFIG, type SalesDeal } from "@/lib/sales/SalesDealTypes";
 
@@ -23,11 +26,17 @@ export default function WorkflowStepPanel({
   customerName,
   ownerName,
   canAct,
+  showContinuePrompt = false,
 }: {
   deal: SalesDeal;
   customerName: string;
   ownerName: string;
   canAct: boolean;
+  // Only "My Deals" (a rep viewing their own deal that's moved past their
+  // stage) should prompt "Continue to Manager/Finance Review" — the
+  // Manager Approval / Finance Review sections themselves already ARE
+  // that review venue, so they never set this.
+  showContinuePrompt?: boolean;
 }) {
   const stageConfig = STAGE_CONFIG[deal.stage];
   const responsiblePerson =
@@ -59,6 +68,7 @@ export default function WorkflowStepPanel({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
+        <TagBadge label={`Phase: ${getDealPhase(deal.stage)}`} />
         <TagBadge label={`Current Step: ${stageConfig.label}`} />
         <TagBadge label={`Responsible: ${responsiblePerson}`} />
       </div>
@@ -146,6 +156,29 @@ export default function WorkflowStepPanel({
               ]}
             />
           )}
+        </div>
+      )}
+
+      {!canAct &&
+        showContinuePrompt &&
+        CompanyModeStore.isDemoModeEnabled() &&
+        (deal.stage === "pending-manager-approval" || deal.stage === "pending-finance-review") && (
+        <div className="mt-4 border-t border-slate-800 pt-4">
+          <form action={setPresentationRole}>
+            <input type="hidden" name="role" value={deal.stage === "pending-manager-approval" ? "sales-manager" : "finance"} />
+            <input
+              type="hidden"
+              name="redirectTo"
+              value={
+                deal.stage === "pending-manager-approval"
+                  ? "/workforce/sales/workspace#manager-approval"
+                  : "/workforce/finance/workspace"
+              }
+            />
+            <button type="submit" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+              {deal.stage === "pending-manager-approval" ? "Continue to Manager Review →" : "Continue to Finance Review →"}
+            </button>
+          </form>
         </div>
       )}
     </div>

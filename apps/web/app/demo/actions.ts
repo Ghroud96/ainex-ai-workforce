@@ -19,7 +19,7 @@ import { WorkerAnalysisResultStore } from "@/lib/services/knowledge/WorkerAnalys
 export async function startEnterpriseDemo(): Promise<void> {
   const { company } = CompanyProfileStore.getCurrent();
   const deals = SalesDealStore.listFor(company);
-  const featured = pickFeaturedOpportunity(deals);
+  const featured = pickFeaturedOpportunity(company, deals);
   if (!featured) return;
 
   SalesDealStore.resetDeal(featured.id);

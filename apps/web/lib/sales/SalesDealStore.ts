@@ -1,7 +1,11 @@
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
 import { buildInitialDeals } from "@/lib/sales/SalesDealGenerator";
-import type { DealAiResult, DealStage, DealTouchpointId, SalesDeal } from "@/lib/sales/SalesDealTypes";
+import type { SalesDealRepository } from "@/lib/sales/SalesDealRepository";
+import type { DealStage, SalesDeal } from "@/lib/sales/SalesDealTypes";
 
+// The in-memory SalesDealRepository implementation — persistence only,
+// see SalesDealRepository.ts for the interface this satisfies and
+// SalesDealService.ts for the business rules layered on top of it.
 // Mirrors lib/decisions/DecisionStore.ts exactly: an in-memory,
 // per-company-id map, lazily seeded on first access and then mutated in
 // place — so a regenerated company (a new company.profile.id) naturally
@@ -10,7 +14,7 @@ import type { DealAiResult, DealStage, DealTouchpointId, SalesDeal } from "@/lib
 // advances, recorded AI results) survives page refreshes for as long as
 // this company stays selected. Anchored to globalThis for the same
 // cross-module-graph reason as every other store in this app.
-class SalesDealStoreImpl {
+class InMemorySalesDealRepository implements SalesDealRepository {
   private dealsByCompanyId = new Map<string, SalesDeal[]>();
   // Each deal's exact just-seeded state, captured once so resetDeal() can
   // restore it later without re-running the whole seeded-rng sequence
@@ -31,6 +35,10 @@ class SalesDealStoreImpl {
     this.initialSnapshotsByCompanyId.set(company.profile.id, snapshots);
 
     return seeded;
+  }
+
+  getForCustomer(company: GeneratedCompany, customerId: string): SalesDeal | undefined {
+    return this.listFor(company).find((deal) => deal.customerId === customerId);
   }
 
   // The stage a deal started at when first seeded — not necessarily
@@ -76,28 +84,26 @@ class SalesDealStoreImpl {
     return this.findById(id);
   }
 
-  advance(id: string, nextStage: DealStage, note: string): void {
-    const deal = this.findById(id);
-    if (!deal) return;
-
-    const at = new Date().toISOString().slice(0, 10);
-    deal.stage = nextStage;
-    deal.lastInteraction = at;
-    deal.history.push({ stage: nextStage, at, note });
-  }
-
-  recordAiResult(id: string, touchpointId: DealTouchpointId, result: DealAiResult): void {
-    const deal = this.findById(id);
-    if (!deal) return;
-    deal.aiResults[touchpointId] = result;
+  // Upsert — pure load/save, no stage-transition or note-composition
+  // logic (that lives in SalesDealService.ts). listFor() guarantees the
+  // company's array exists and returns the same reference stored in the
+  // map, so pushing/replacing into it here mutates the stored state.
+  save(company: GeneratedCompany, deal: SalesDeal): void {
+    const deals = this.listFor(company);
+    const index = deals.findIndex((entry) => entry.id === deal.id);
+    if (index === -1) {
+      deals.push(deal);
+    } else {
+      deals[index] = deal;
+    }
   }
 }
 
 const GLOBAL_KEY = Symbol.for("ainex.SalesDealStore");
 
-type GlobalWithStore = typeof globalThis & { [GLOBAL_KEY]?: SalesDealStoreImpl };
+type GlobalWithStore = typeof globalThis & { [GLOBAL_KEY]?: InMemorySalesDealRepository };
 
 const globalWithStore = globalThis as GlobalWithStore;
 
-export const SalesDealStore: SalesDealStoreImpl =
-  globalWithStore[GLOBAL_KEY] ?? (globalWithStore[GLOBAL_KEY] = new SalesDealStoreImpl());
+export const SalesDealStore: SalesDealRepository =
+  globalWithStore[GLOBAL_KEY] ?? (globalWithStore[GLOBAL_KEY] = new InMemorySalesDealRepository());

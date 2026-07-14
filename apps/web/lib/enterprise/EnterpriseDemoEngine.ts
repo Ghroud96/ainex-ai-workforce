@@ -1,4 +1,5 @@
 import { buildRecommendedActions } from "@/lib/enterprise/BusinessInsights";
+import { scoreOpportunity } from "@/lib/enterprise/DecisionEngine";
 import { EnterpriseDemoStore } from "@/lib/enterprise/EnterpriseDemoStore";
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
 import { SalesDealStore } from "@/lib/sales/SalesDealStore";
@@ -37,6 +38,10 @@ const SCREEN_MINUTES = [1.5, 2.5, 2, 1.5, 2];
 const APPROVAL_STAGES: DealStage[] = ["pending-manager-approval", "pending-finance-review"];
 const TERMINAL_STAGES: DealStage[] = ["confirmed", "rejected"];
 
+function daysSinceInteraction(dateIso: string): number {
+  return Math.floor((Date.now() - new Date(dateIso).getTime()) / (1000 * 60 * 60 * 24));
+}
+
 // Deterministic, never random. Current stage is irrelevant to selection —
 // the caller (app/demo/actions.ts::startEnterpriseDemo) always resets
 // whatever gets picked back to its just-seeded state, so this stays
@@ -48,10 +53,26 @@ const TERMINAL_STAGES: DealStage[] = ["confirmed", "rejected"];
 // SEED_STAGES): preferring one that did means the full Sales -> Manager
 // -> Finance arc is always demoable from its very first step, not
 // whatever step a higher-value deal happened to be pre-seeded at.
-export function pickFeaturedOpportunity(deals: SalesDeal[]): SalesDeal | undefined {
+//
+// Scored via DecisionEngine.scoreOpportunity (value, urgency, customer
+// health) rather than estimatedValue alone — "the architecture should not
+// assume value alone," approximated with real signals already in the
+// data model today, not a hardcoded stub.
+export function pickFeaturedOpportunity(company: GeneratedCompany, deals: SalesDeal[]): SalesDeal | undefined {
   const startsFromScratch = deals.filter((deal) => SalesDealStore.getInitialStage(deal.id) === "follow-up-needed");
   const pool = startsFromScratch.length > 0 ? startsFromScratch : deals;
-  return [...pool].sort((a, b) => b.estimatedValue - a.estimatedValue)[0];
+
+  return [...pool].sort((a, b) => {
+    const scoreFor = (deal: SalesDeal) => {
+      const customer = company.customers.find((entry) => entry.id === deal.customerId);
+      return scoreOpportunity({
+        value: deal.estimatedValue,
+        urgencyDays: daysSinceInteraction(deal.lastInteraction),
+        customerStatus: customer?.status ?? "Active",
+      });
+    };
+    return scoreFor(b) - scoreFor(a);
+  })[0];
 }
 
 function firstSectionItem(sections: WorkerAnalysisSection[], key: string): string | undefined {
