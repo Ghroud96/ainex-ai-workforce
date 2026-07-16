@@ -15,7 +15,7 @@ function UserFields({ users, currentUserId }: { users: EnterpriseUser[]; current
       defaultValue={currentUserId}
       disabled={pending}
       onChange={(event) => event.currentTarget.form?.requestSubmit()}
-      className="w-full rounded-lg border border-slate-800 bg-slate-800 p-2 text-xs text-white outline-none focus:border-blue-600 disabled:opacity-50"
+      className="w-full rounded-lg border border-slate-200/70 bg-white p-2 text-xs text-slate-900 outline-none focus:border-blue-600 disabled:opacity-50"
     >
       {users.map((user) => (
         <option key={user.id} value={user.id}>
@@ -31,8 +31,8 @@ function UserFields({ users, currentUserId }: { users: EnterpriseUser[]; current
 // "who's logged in" changes in this no-auth simulation.
 export default function UserSwitcher({ users, currentUserId }: { users: EnterpriseUser[]; currentUserId: string }) {
   return (
-    <form action={switchCurrentUser} className="mt-6 border-t border-slate-800 pt-4">
-      <p className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">Logged in as</p>
+    <form action={switchCurrentUser} className="mt-6 border-t border-slate-200/70 pt-4">
+      <p className="mb-2 text-xs font-medium tracking-wide text-slate-400 uppercase">Logged in as</p>
       <UserFields key={currentUserId} users={users} currentUserId={currentUserId} />
     </form>
   );

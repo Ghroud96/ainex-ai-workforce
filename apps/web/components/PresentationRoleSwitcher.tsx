@@ -25,7 +25,7 @@ function RoleFields({ role }: { role: PresentationRole }) {
       defaultValue={role}
       disabled={pending}
       onChange={(event) => event.currentTarget.form?.requestSubmit()}
-      className="w-full rounded-lg border border-slate-800 bg-slate-800 p-2 text-xs text-white outline-none focus:border-blue-600 disabled:opacity-50"
+      className="w-full rounded-lg border border-slate-200/70 bg-white p-2 text-xs text-slate-900 outline-none focus:border-blue-600 disabled:opacity-50"
     >
       {ROLE_ORDER.map((value) => (
         <option key={value} value={value}>
@@ -43,8 +43,8 @@ function RoleFields({ role }: { role: PresentationRole }) {
 // the main nav.
 export default function PresentationRoleSwitcher({ role }: { role: PresentationRole }) {
   return (
-    <form action={setPresentationRole} className="mt-4 border-t border-slate-800 pt-4">
-      <p className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">Presenting</p>
+    <form action={setPresentationRole} className="mt-4 border-t border-slate-200/70 pt-4">
+      <p className="mb-2 text-xs font-medium tracking-wide text-slate-400 uppercase">Presenting</p>
       <RoleFields key={role} role={role} />
     </form>
   );

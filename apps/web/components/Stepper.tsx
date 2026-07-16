@@ -15,20 +15,20 @@ export default function Stepper({ steps, currentIndex }: { steps: readonly strin
                 index < currentIndex
                   ? "bg-green-500"
                   : index === currentIndex
-                    ? "bg-blue-500 ring-4 ring-blue-500/20"
-                    : "bg-slate-700"
+                    ? "bg-blue-600 ring-4 ring-blue-500/20"
+                    : "bg-slate-300"
               }`}
             />
             <span
               className={`whitespace-nowrap text-[11px] ${
-                index === currentIndex ? "font-semibold text-white" : index < currentIndex ? "text-green-400" : "text-slate-500"
+                index === currentIndex ? "font-semibold text-slate-900" : index < currentIndex ? "text-green-600" : "text-slate-400"
               }`}
             >
               {step}
             </span>
           </div>
           {index < steps.length - 1 && (
-            <div className={`mb-4 h-px w-6 sm:w-10 ${index < currentIndex ? "bg-green-500" : "bg-slate-700"}`} />
+            <div className={`mb-4 h-px w-6 sm:w-10 ${index < currentIndex ? "bg-green-500" : "bg-slate-200"}`} />
           )}
         </div>
       ))}

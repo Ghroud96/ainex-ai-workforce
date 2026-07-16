@@ -17,7 +17,7 @@ export default function WorkerTabs({ slug }: { slug: string }) {
   ];
 
   return (
-    <nav className="flex gap-1 border-b border-slate-800">
+    <nav className="flex gap-1 border-b border-slate-200/70">
       {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (
@@ -25,7 +25,7 @@ export default function WorkerTabs({ slug }: { slug: string }) {
             key={tab.href}
             href={tab.href}
             className={`-mb-px border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-              active ? "border-blue-500 text-white" : "border-transparent text-slate-400 hover:text-slate-200"
+              active ? "border-blue-600 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             {tab.label}

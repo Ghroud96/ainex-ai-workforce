@@ -13,18 +13,18 @@ export default function EnterpriseDemoProgress({ company }: { company: Generated
   if (!snapshot) return null;
 
   return (
-    <div className="border-b border-slate-800 bg-slate-950/60 px-10 py-2">
+    <div className="border-b border-slate-200/70 bg-white px-10 py-2">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-        <span className="font-medium tracking-wide text-slate-500 uppercase">Enterprise Demo Progress</span>
+        <span className="font-medium tracking-wide text-slate-400 uppercase">Enterprise Demo Progress</span>
         {snapshot.screens.map((screen, index) => (
           <span
             key={screen.label}
             className={
               screen.done
-                ? "text-green-400"
+                ? "text-green-600"
                 : index === snapshot.currentScreenIndex
-                  ? "font-semibold text-white"
-                  : "text-slate-600"
+                  ? "font-semibold text-slate-900"
+                  : "text-slate-400"
             }
           >
             {screen.done ? "✓" : "○"} {screen.label}

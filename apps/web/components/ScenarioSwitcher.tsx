@@ -19,7 +19,7 @@ function ScenarioFields({ industry, size }: { industry: Industry; size: CompanyS
         defaultValue={industry}
         disabled={pending}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        className="w-full rounded-lg border border-slate-800 bg-slate-800 p-2 text-xs text-white outline-none focus:border-blue-600 disabled:opacity-50"
+        className="w-full rounded-lg border border-slate-200/70 bg-white p-2 text-xs text-slate-900 outline-none focus:border-blue-600 disabled:opacity-50"
       >
         {INDUSTRIES.map((option) => (
           <option key={option} value={option}>
@@ -32,7 +32,7 @@ function ScenarioFields({ industry, size }: { industry: Industry; size: CompanyS
         defaultValue={size}
         disabled={pending}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        className="w-full rounded-lg border border-slate-800 bg-slate-800 p-2 text-xs text-white outline-none focus:border-blue-600 disabled:opacity-50"
+        className="w-full rounded-lg border border-slate-200/70 bg-white p-2 text-xs text-slate-900 outline-none focus:border-blue-600 disabled:opacity-50"
       >
         {COMPANY_SIZES.map((option) => (
           <option key={option} value={option}>
@@ -49,8 +49,8 @@ function ScenarioFields({ industry, size }: { industry: Industry; size: CompanyS
 // new one, so it's usable from every page instead of only /settings.
 export default function ScenarioSwitcher({ industry, size }: { industry: Industry; size: CompanySize }) {
   return (
-    <form action={updateCompanyProfile} className="mt-6 border-t border-slate-800 pt-4">
-      <p className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">Scenario Generator</p>
+    <form action={updateCompanyProfile} className="mt-6 border-t border-slate-200/70 pt-4">
+      <p className="mb-2 text-xs font-medium tracking-wide text-slate-400 uppercase">Scenario Generator</p>
       <ScenarioFields key={`${industry}::${size}`} industry={industry} size={size} />
     </form>
   );

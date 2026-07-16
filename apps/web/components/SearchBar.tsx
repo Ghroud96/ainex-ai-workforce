@@ -14,7 +14,7 @@ export default function SearchBar({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+      className="w-full rounded-lg border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-600 placeholder:text-slate-400"
     />
   );
 }

@@ -9,13 +9,13 @@ export default function WorkerCapability({ worker }: { worker: DigitalWorker }) 
         return (
           <div
             key={capability}
-            className={`flex items-center gap-3 rounded-lg border border-slate-800 p-4 text-sm ${
-              enabled ? "bg-slate-900 text-slate-200" : "bg-slate-900/40 text-slate-600"
+            className={`flex items-center gap-3 rounded-lg border border-slate-200/70 p-4 text-sm ${
+              enabled ? "bg-white text-slate-700" : "bg-slate-50 text-slate-400"
             }`}
           >
             <span
               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
-                enabled ? "bg-green-500/10 text-green-400" : "bg-slate-800 text-slate-600"
+                enabled ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"
               }`}
             >
               {enabled ? "✓" : "–"}

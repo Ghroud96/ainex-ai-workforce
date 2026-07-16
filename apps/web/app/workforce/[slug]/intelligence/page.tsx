@@ -1,18 +1,56 @@
 import { notFound } from "next/navigation";
+import EmptyState from "@/components/design/EmptyState";
+import EntityCard from "@/components/design/EntityCard";
+import ExecutiveDecisionCard from "@/components/design/ExecutiveDecisionCard";
+import PageSection from "@/components/design/PageSection";
+import StatCard from "@/components/design/StatCard";
+import StatusBadge, { type StatusTone } from "@/components/design/StatusBadge";
 import Expandable from "@/components/Expandable";
-import PriorityBadge from "@/components/PriorityBadge";
-import SectionTitle from "@/components/SectionTitle";
-import TagBadge from "@/components/TagBadge";
-import WorkflowCard from "@/components/WorkflowCard";
+import { accent, surface, text } from "@/lib/design/colors";
+import { spacing } from "@/lib/design/spacing";
+import { type } from "@/lib/design/typography";
 import { enrichWorkflowRun } from "@/lib/enterprise/BusinessInsights";
-import type { PlanStep } from "@/lib/planning/PlanTypes";
+import type { ActionItem, BusinessPriorityLevel, ConfidenceLabel, FindingCategory, ReasoningFinding } from "@/lib/reasoning/ReasoningTypes";
 import { WorkerRuntime } from "@/lib/runtime/WorkerRuntime";
 import { WorkflowService } from "@/lib/workflow/WorkflowService";
-import type { WorkflowRun } from "@/lib/workflow/WorkflowTypes";
+import type { WorkflowRun, WorkflowStatus } from "@/lib/workflow/WorkflowTypes";
 import { WorkforceService } from "@/services/workforce/WorkforceService";
 
-// The Intelligence page answers exactly one question: "Why did the AI make
-// this decision?" — for Executives/IT/Admins/Developers, not daily work.
+const PRIORITY_TONE: Record<BusinessPriorityLevel, StatusTone> = {
+  Critical: "danger",
+  High: "warning",
+  Medium: "info",
+  Low: "neutral",
+};
+
+const CONFIDENCE_TONE: Record<ConfidenceLabel, StatusTone> = {
+  High: "success",
+  Medium: "info",
+  Low: "warning",
+};
+
+const FINDING_TONE: Record<FindingCategory, StatusTone> = {
+  risk: "danger",
+  opportunity: "success",
+  anomaly: "warning",
+};
+
+const RUN_STATUS_TONE: Record<WorkflowStatus, StatusTone> = {
+  Draft: "neutral",
+  Active: "info",
+  Paused: "neutral",
+  Running: "info",
+  Completed: "success",
+  Failed: "danger",
+  Cancelled: "neutral",
+  "Requires Approval": "warning",
+};
+
+// The Intelligence page answers one question: "What does AINEX understand
+// about this company?" — Executive Understanding leads, the technical plan
+// and execution trace that produced it is demoted to Supporting Evidence.
+// Same WorkerRuntime.handle() pipeline and WorkflowService calls as before
+// this migration; only how the result is organized and rendered changed.
 export default async function WorkerIntelligencePage({
   params,
 }: {
@@ -28,20 +66,11 @@ export default async function WorkerIntelligencePage({
   const worker = WorkforceService.toCardData(workerInstance);
   const health = WorkforceService.getHealth(workerInstance);
 
-  // Runs the full B1-C9 pipeline (Runtime -> Worker Router -> ... ->
-  // Execution Engine -> Action Layer -> Workflow Layer -> n8n Provider)
-  // for a sample request, so this page shows real computed output rather
-  // than static placeholder text. Architecture only — no real AI provider,
-  // workflow, or approval process is connected, and nothing here is
-  // triggered by an actual user action.
   const intelligence = await WorkerRuntime.handle({
     workerId: workerInstance.id,
     userMessage: `Review current priorities for ${worker.department}`,
   });
 
-  // Read after WorkerRuntime.handle() so a workflow run it just triggered
-  // (Action Layer -> Workflow Layer, see docs/architecture/workflow-automation.md)
-  // is reflected below, not missed by reading the run store one step too early.
   const recentWorkflowRuns = WorkflowService.runHistoryForWorker(workerInstance.id).slice(0, 5);
   const workflowApprovalsRequired = WorkflowService.approvalsRequiredForWorker(workerInstance.id);
   const recommendedWorkflows = WorkflowService.recommendedForWorker(workerInstance.id);
@@ -67,283 +96,287 @@ export default async function WorkerIntelligencePage({
       (step) => stepsByPlanStepId.get(step.id)?.status === "Failed",
     ) ?? [];
 
+  // Actions are only ever synthesized from risk findings (ActionRecommendation.ts),
+  // titled "Address: {finding.title}" — this recovers that link so each AI
+  // Recommendation card can cite the specific finding driving it, instead of
+  // presenting the recommendation as if it came from nowhere.
+  const findingByTitle = new Map(intelligence?.reasoning.findings.map((finding) => [finding.title, finding]) ?? []);
+  const primaryFollowUp = intelligence?.reasoning.followUps[0] ?? "No follow-up action required at this time.";
+
   return (
     <>
-      <section>
-        <SectionTitle
-          title="Manager Summary"
-          description="The Reasoning Engine's own read of this worker's current priorities — computed on every page load, not previously surfaced here."
+      <PageSection>
+        <ExecutiveDecisionCard
+          eyebrow="Executive Understanding"
+          decision={intelligence?.reasoning.executiveSummary.headline ?? "No summary available yet."}
+          whyItMatters={
+            intelligence?.reasoning.executiveSummary.narrative ??
+            "Run this worker to generate an executive read of current priorities."
+          }
         />
-        <div className="rounded-xl bg-slate-900 p-6">
-          <p className="text-sm font-semibold text-white">
-            {intelligence?.reasoning.executiveSummary.headline ?? "No summary available yet."}
-          </p>
-          <p className="mt-2 text-sm text-slate-300">{intelligence?.reasoning.executiveSummary.narrative}</p>
-          {intelligence && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <TagBadge label={`Current Focus: ${intelligence.reasoning.overallPriority.level} priority`} />
-              <TagBadge label={`Confidence: ${intelligence.reasoning.confidence.label}`} />
-            </div>
-          )}
-        </div>
-      </section>
+        {intelligence && (
+          <div className="mt-4 flex flex-wrap gap-3">
+            <StatusBadge
+              label={`Current Focus: ${intelligence.reasoning.overallPriority.level} priority`}
+              tone={PRIORITY_TONE[intelligence.reasoning.overallPriority.level]}
+            />
+            <StatusBadge
+              label={`Confidence: ${intelligence.reasoning.confidence.label}`}
+              tone={CONFIDENCE_TONE[intelligence.reasoning.confidence.label]}
+            />
+          </div>
+        )}
+      </PageSection>
 
-      <section>
-        <SectionTitle
-          title="Recent Decisions"
-          description="Risks, opportunities, and anomalies this worker's Reasoning stage identified from today's knowledge review."
-        />
+      <PageSection
+        title="Business Intelligence"
+        description="Risks, opportunities, and anomalies AINEX identified from today's knowledge review — insight, not a document list."
+      >
         {!intelligence || intelligence.reasoning.findings.length === 0 ? (
-          <p className="text-sm text-slate-500">No decisions recorded yet.</p>
+          <EmptyState
+            title="No business intelligence yet"
+            description="This worker hasn't identified any risks, opportunities, or anomalies from today's knowledge review."
+          />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {intelligence.reasoning.findings.map((finding) => (
-              <div key={finding.id} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-white">{finding.title}</p>
-                  <TagBadge label={finding.category} />
-                </div>
-                <p className="mt-1 text-sm text-slate-400">{finding.description}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Business Recommendations"
-          description="Concrete actions this worker's Decision stage recommended in response to today's findings."
-        />
-        {!intelligence || intelligence.reasoning.actions.length === 0 ? (
-          <p className="text-sm text-slate-500">No recommendations right now.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {intelligence.reasoning.actions.map((action) => (
-              <WorkflowCard key={action.id} name={action.title} description={action.description} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Upcoming Work"
-          description="Follow-up suggestions from the Reasoning Engine for what comes next."
-        />
-        {!intelligence || intelligence.reasoning.followUps.length === 0 ? (
-          <p className="text-sm text-slate-500">No follow-up action required right now.</p>
-        ) : (
-          <ul className="space-y-2">
-            {intelligence.reasoning.followUps.map((followUp, index) => (
-              <li key={index} className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
-                {followUp}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Worker Health"
-          description="Live status for this Digital Worker."
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Operational</p>
-            <p className="mt-2 text-lg font-semibold text-white">{health.operational ? "Yes" : "No"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 sm:col-span-2">
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Notes</p>
-            <p className="mt-2 text-sm text-slate-300">{health.notes}</p>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Worker Memory"
-          description="What this Digital Worker remembers across conversations and tasks."
-        />
-        <Expandable summary="View memory types">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
-            {["Short Term", "Conversation", "Company", "Knowledge", "Long Term"].map((memoryType) => (
-              <div key={memoryType} className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-500">
-                <p className="font-medium text-slate-400">{memoryType} Memory</p>
-                <p className="mt-1 text-xs">Not yet populated</p>
-              </div>
-            ))}
-          </div>
-        </Expandable>
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Current Plan"
-          description="How this worker breaks a business question down into steps before acting."
-        />
-        <div className="rounded-xl bg-slate-900 p-6">
-          <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Goal</p>
-          <p className="mt-1 text-sm text-slate-200">
-            {intelligence?.planning.plan.goal ?? "No plan available yet."}
-          </p>
-
-          {!intelligence || intelligence.planning.plan.steps.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">
-              No plan steps were generated for this request — the underlying question had no risks,
-              opportunities, or anomalies to act on.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-2">
-              {intelligence.planning.plan.steps.map((step) => (
-                <div
-                  key={step.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-white">{step.title}</p>
-                    <p className="text-xs text-slate-500">
-                      {step.workerId ?? "—"} · {step.capabilityId ?? "—"} · {step.priority.level} priority
-                    </p>
-                  </div>
-                  {step.requiresApproval && <TagBadge label="Requires Approval" />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Execution Results"
-          description="How the plan above is carried out, step by step."
-        />
-        <Expandable summary="View execution results">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <ExecutionStepGroup title="Pending Actions" steps={pendingSteps} />
-            <ExecutionStepGroup title="Approval Required" steps={approvalSteps} />
-            <ExecutionStepGroup title="Completed Steps" steps={completedSteps} />
-            <ExecutionStepGroup title="Failed Steps" steps={failedSteps} />
+            {intelligence.reasoning.findings.map((finding) => (
+              <EntityCard
+                key={finding.id}
+                title={finding.title}
+                status={<StatusBadge label={finding.category} tone={FINDING_TONE[finding.category]} />}
+              >
+                <p className={`${type.body} ${text.secondary}`}>{finding.description}</p>
+              </EntityCard>
+            ))}
           </div>
-        </Expandable>
-      </section>
+        )}
+      </PageSection>
 
-      <section>
-        <SectionTitle
-          title="Execution Timeline"
-          description="Chronological record of this run."
-        />
-        {!intelligence || intelligence.execution.timeline.length === 0 ? (
-          <p className="text-sm text-slate-500">No recorded activity yet.</p>
+      <PageSection
+        title="AI Recommendations"
+        description="What AINEX recommends doing next, and why."
+      >
+        {!intelligence || intelligence.reasoning.actions.length === 0 ? (
+          <EmptyState
+            title="No recommendations right now"
+            description="AINEX has no concrete action to recommend from today's findings."
+          />
         ) : (
-          <Expandable summary={`View ${intelligence.execution.timeline.length} timeline entries`}>
-            <div className="rounded-xl bg-slate-900 p-6">
-              <div className="space-y-2 text-sm text-slate-300">
-                {intelligence.execution.timeline.map((entry, index) => (
-                  <p key={index}>
-                    <span className="text-slate-500">{entry.timestamp}</span> — {entry.message}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {intelligence.reasoning.actions.map((action) => (
+              <RecommendationDetail
+                key={action.id}
+                action={action}
+                finding={findingByTitle.get(action.title.replace(/^Address: /, ""))}
+                followUp={primaryFollowUp}
+              />
+            ))}
+          </div>
+        )}
+      </PageSection>
+
+      <PageSection
+        title="Supporting Evidence"
+        description="How AINEX reached the understanding above — plan, execution, and workflow detail, for anyone verifying the work."
+      >
+        <div className="space-y-4">
+          <Expandable summary="View the plan and execution trace">
+            <div className="space-y-4">
+              <EntityCard title="Plan" meta={intelligence?.planning.plan.goal ?? "No plan available yet."}>
+                {!intelligence || intelligence.planning.plan.steps.length === 0 ? (
+                  <p className={`${type.body} ${text.muted}`}>
+                    No plan steps were generated for this request — the underlying question had no risks,
+                    opportunities, or anomalies to act on.
                   </p>
-                ))}
+                ) : (
+                  <ul className="space-y-3">
+                    {intelligence.planning.plan.steps.map((step) => (
+                      <li key={step.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 first:border-t-0 first:pt-0">
+                        <div>
+                          <p className={`${type.body} ${text.primary}`}>{step.title}</p>
+                          <p className={`mt-1 ${type.caption} ${text.muted}`}>
+                            {step.workerId ?? "—"} · {step.capabilityId ?? "—"} · {step.priority.level} priority
+                          </p>
+                        </div>
+                        {step.requiresApproval && <StatusBadge label="Requires Approval" tone="warning" />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </EntityCard>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatCard label="Pending" value={String(pendingSteps.length)} />
+                <StatCard label="Awaiting Approval" value={String(approvalSteps.length)} />
+                <StatCard label="Completed" value={String(completedSteps.length)} />
+                <StatCard label="Failed" value={String(failedSteps.length)} />
+              </div>
+
+              <EntityCard title="Execution Timeline">
+                {!intelligence || intelligence.execution.timeline.length === 0 ? (
+                  <p className={`${type.body} ${text.muted}`}>No recorded activity yet.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {intelligence.execution.timeline.map((entry, index) => (
+                      <p key={index} className={`${type.caption} ${text.secondary}`}>
+                        <span className={text.muted}>{entry.timestamp}</span> — {entry.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </EntityCard>
+            </div>
+          </Expandable>
+
+          <Expandable summary="View workflow automation detail">
+            <div className="space-y-4">
+              <div>
+                <p className={`${type.caption} ${text.muted}`}>Recommended Workflows</p>
+                {recommendedWorkflows.length === 0 ? (
+                  <p className={`mt-2 ${type.body} ${text.muted}`}>No workflow is registered for this worker yet.</p>
+                ) : (
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {recommendedWorkflows.map((workflow) => (
+                      <EntityCard key={workflow.id} title={workflow.name}>
+                        <p className={`${type.body} ${text.secondary}`}>{workflow.description}</p>
+                      </EntityCard>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className={`${type.caption} ${text.muted}`}>Waiting on Approval</p>
+                {workflowApprovalsRequired.length === 0 ? (
+                  <p className={`mt-2 ${type.body} ${text.muted}`}>No workflow runs are waiting on approval.</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {workflowApprovalsRequired.map((run) => (
+                      <WorkflowRunCard key={run.id} run={run} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className={`${type.caption} ${text.muted}`}>Recent Runs</p>
+                {recentWorkflowRuns.length === 0 ? (
+                  <p className={`mt-2 ${type.body} ${text.muted}`}>No workflow runs recorded yet.</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {recentWorkflowRuns.map((run) => (
+                      <WorkflowRunCard key={run.id} run={run} />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </Expandable>
-        )}
-      </section>
 
-      <section>
-        <SectionTitle
-          title="Recommended Workflows"
-          description="Workflow Automation this worker can recommend triggering to carry a decision through to completion."
-        />
-        {recommendedWorkflows.length === 0 ? (
-          <p className="text-sm text-slate-500">No workflow is registered for this worker yet.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {recommendedWorkflows.map((workflow) => (
-              <WorkflowCard key={workflow.id} name={workflow.name} description={workflow.description} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Approval Required"
-          description="Workflow runs for this worker waiting on human approval before they execute."
-        />
-        {workflowApprovalsRequired.length === 0 ? (
-          <p className="text-sm text-slate-500">No workflow runs are waiting on approval.</p>
-        ) : (
-          <div className="space-y-2">
-            {workflowApprovalsRequired.map((run) => (
-              <WorkflowRunRow key={run.id} run={run} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <SectionTitle
-          title="Recent Workflow Runs"
-          description="This worker's most recent workflow runs, most recent first."
-        />
-        {recentWorkflowRuns.length === 0 ? (
-          <p className="text-sm text-slate-500">No workflow runs recorded yet.</p>
-        ) : (
-          <Expandable summary={`View ${recentWorkflowRuns.length} recent runs`}>
-            <div className="space-y-2">
-              {recentWorkflowRuns.map((run) => (
-                <WorkflowRunRow key={run.id} run={run} />
-              ))}
+          <Expandable summary="View worker health and memory">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <EntityCard
+                title="Operational Status"
+                status={
+                  <StatusBadge label={health.operational ? "Operational" : "Needs Attention"} tone={health.operational ? "success" : "danger"} />
+                }
+              >
+                <p className={`${type.body} ${text.secondary}`}>{health.notes}</p>
+              </EntityCard>
+              <EntityCard title="Worker Memory">
+                <p className={`${type.body} ${text.muted}`}>
+                  Short Term, Conversation, Company, Knowledge, and Long Term memory are not yet populated for this worker.
+                </p>
+              </EntityCard>
             </div>
           </Expandable>
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="Knowledge Sources"
+        description="The company documents AINEX read to reach the understanding above."
+      >
+        {!intelligence || intelligence.rag.citations.length === 0 ? (
+          <EmptyState
+            title="No source documents cited"
+            description="This worker didn't find a company document directly relevant to today's question."
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatCard label="Documents Cited" value={String(intelligence.rag.citations.length)} />
+              <StatCard label="Confidence" value={intelligence.reasoning.confidence.label} />
+              <StatCard label="Last Analysed" value={intelligence.reasoning.generatedAt} />
+            </div>
+            <div className="mt-4 space-y-2">
+              {intelligence.rag.citations.map((citation) => (
+                <EntityCard key={citation.documentId} title={citation.title} meta={citation.department} />
+              ))}
+            </div>
+          </>
         )}
-      </section>
+      </PageSection>
     </>
   );
 }
 
-function ExecutionStepGroup({ title, steps }: { title: string; steps: PlanStep[] }) {
+function RecommendationDetail({
+  action,
+  finding,
+  followUp,
+}: {
+  action: ActionItem;
+  finding?: ReasoningFinding;
+  followUp: string;
+}) {
+  const expectedOutcome = finding
+    ? finding.category === "risk"
+      ? `Removes the risk flagged in "${finding.title}" before it escalates.`
+      : `Acts on the opportunity flagged in "${finding.title}" before it's missed.`
+    : "Resolves the flagged item before it affects business outcomes.";
+
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-        {title} ({steps.length})
+    <div className={`${surface.sunken} rounded-lg border-l-2 ${accent.secondaryBorder} ${spacing.cardPadding}`}>
+      <p className={`${type.eyebrow} ${accent.secondaryText}`}>AI Recommendation</p>
+      <p className={`mt-2 ${type.body} font-medium ${text.primary}`}>{action.title.replace(/^Address: /, "")}</p>
+
+      <dl className="mt-4 space-y-3">
+        <div>
+          <dt className={`${type.caption} ${text.muted}`}>Business reason</dt>
+          <dd className={`mt-1 ${type.body} ${text.secondary}`}>{action.description}</dd>
+        </div>
+        <div>
+          <dt className={`${type.caption} ${text.muted}`}>Expected outcome</dt>
+          <dd className={`mt-1 ${type.body} ${text.secondary}`}>{expectedOutcome}</dd>
+        </div>
+        <div>
+          <dt className={`${type.caption} ${text.muted}`}>Suggested next action</dt>
+          <dd className={`mt-1 ${type.body} ${text.secondary}`}>{followUp}</dd>
+        </div>
+      </dl>
+
+      <p className={`mt-4 ${type.caption} ${text.muted}`}>
+        Rule-based · {action.priority.level} priority
       </p>
-      {steps.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-600">None</p>
-      ) : (
-        <ul className="mt-2 space-y-1 text-sm text-slate-300">
-          {steps.map((step) => (
-            <li key={step.id}>{step.title}</li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
 
-function WorkflowRunRow({ run }: { run: WorkflowRun }) {
+function WorkflowRunCard({ run }: { run: WorkflowRun }) {
   const workflow = WorkflowService.getById(run.workflowId);
   const enriched = enrichWorkflowRun(run, workflow);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <div>
-        <p className="text-sm font-medium text-slate-200">{workflow?.name ?? run.workflowId}</p>
-        <p className="mt-1 text-xs text-slate-500">
-          Triggered by {run.triggeredBy} · {run.startedAt}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Waiting for: {enriched.waitingFor} · Est. completion: {enriched.estimatedCompletion}
-        </p>
-        {run.error && <p className="mt-1 text-xs text-red-400">{run.error}</p>}
-      </div>
-      <div className="flex flex-col items-end gap-2">
-        <TagBadge label={run.status} />
-        <PriorityBadge priority={enriched.priority} />
-      </div>
-    </div>
+    <EntityCard
+      title={workflow?.name ?? run.workflowId}
+      meta={`Triggered by ${run.triggeredBy} · ${run.startedAt}`}
+      status={<StatusBadge label={run.status} tone={RUN_STATUS_TONE[run.status]} />}
+    >
+      <p className={`${type.caption} ${text.muted}`}>
+        Waiting for: {enriched.waitingFor} · Est. completion: {enriched.estimatedCompletion} · {enriched.priority} priority
+      </p>
+      {run.error && <p className={`mt-1 ${type.caption} text-red-400`}>{run.error}</p>}
+    </EntityCard>
   );
 }

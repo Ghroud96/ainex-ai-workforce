@@ -4,8 +4,8 @@ export interface KpiTrend {
 }
 
 const TREND_COLOR: Record<KpiTrend["direction"], string> = {
-  up: "text-green-400",
-  down: "text-red-400",
+  up: "text-green-600",
+  down: "text-red-600",
   flat: "text-slate-500",
 };
 
@@ -36,12 +36,12 @@ export default function KpiCard({
   trend?: KpiTrend;
 }) {
   return (
-    <div className="rounded-xl bg-slate-900 p-6">
+    <div className="rounded-xl border border-slate-200/70 bg-white p-6">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-slate-400">{title}</p>
+        <p className="text-slate-500">{title}</p>
         {trend && <TrendIndicator trend={trend} />}
       </div>
-      <h3 className="mt-4 text-3xl font-bold">{value}</h3>
+      <h3 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{value}</h3>
     </div>
   );
 }

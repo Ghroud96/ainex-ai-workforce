@@ -1,18 +1,23 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import ActivityTimeline from "@/components/ActivityTimeline";
 import Expandable from "@/components/Expandable";
 import ExecutionRestrictedNotice from "@/components/ExecutionRestrictedNotice";
 import FollowUpExecutionDialog from "@/components/sales/FollowUpExecutionDialog";
-import KpiCard from "@/components/KpiCard";
-import PriorityBadge from "@/components/PriorityBadge";
-import SectionTitle from "@/components/SectionTitle";
 import TagBadge from "@/components/TagBadge";
 import TodaysDecision from "@/components/TodaysDecision";
 import WorkflowStepPanel from "@/components/WorkflowStepPanel";
+import ActionButton from "@/components/design/ActionButton";
+import EmptyState from "@/components/design/EmptyState";
+import PageSection from "@/components/design/PageSection";
+import PriorityCard from "@/components/design/PriorityCard";
+import StatCard from "@/components/design/StatCard";
+import StatusBadge, { type StatusTone } from "@/components/design/StatusBadge";
+import TimelineCard, { type TimelineAccent } from "@/components/design/TimelineCard";
 import { analyzeDocumentAsWorker } from "@/app/workforce/aiActions";
 import { startWork } from "@/app/workforce/dealActions";
 import { executeSalesFollowUp } from "@/app/workforce/executionActions";
 import { getAllDocuments, type DigitalDocument } from "@/data/documents";
+import type { PriorityLevel } from "@/lib/enterprise/BusinessInsights";
 import { buildCompanyTimeline, toTimelineEntry } from "@/lib/enterprise/CompanyTimeline";
 import { CompanyModeStore } from "@/lib/enterprise/CompanyModeStore";
 import { CompanyProfileStore } from "@/lib/enterprise/CompanyProfileStore";
@@ -22,6 +27,10 @@ import { canAccessWorker, type DepartmentWorkerId } from "@/lib/enterprise/Enter
 import type { GeneratedCompany } from "@/lib/enterprise/EnterpriseTypes";
 import { buildCollaborationChain, buildTodaysActivity } from "@/lib/enterprise/NarrativeBuilder";
 import { isPresentingAs } from "@/lib/enterprise/PresentationModeStore";
+import { accent, surface, text } from "@/lib/design/colors";
+import { radius } from "@/lib/design/radius";
+import { transition } from "@/lib/design/motion";
+import { type } from "@/lib/design/typography";
 import { getTodaysPriorities, type PriorityCustomerRow } from "@/lib/sales/PriorityEngine";
 import { SalesDealStore } from "@/lib/sales/SalesDealStore";
 import { STAGE_CONFIG, type SalesDeal } from "@/lib/sales/SalesDealTypes";
@@ -36,6 +45,19 @@ import { WorkforceService } from "@/services/workforce/WorkforceService";
 // replaced entirely by the Sales Workspace (Today's Priorities + connected
 // deal workflow) below, per Enterprise Demo V1.
 const AI_ANALYSIS_PERSONA_IDS: readonly string[] = ["executive", "finance", "inventory", "hr"];
+
+const PRIORITY_TONE: Record<PriorityLevel, StatusTone> = {
+  Critical: "danger",
+  High: "warning",
+  Medium: "info",
+  Low: "neutral",
+};
+
+// Matches ActionButton's own "secondary" class composition (see
+// components/design/ActionButton.tsx) — needed here only because
+// ActionButton renders a <button>, and "Continue Work" is an anchor link.
+// Built entirely from design tokens.
+const SECONDARY_LINK_CLASS = `${radius.control} px-4 py-2 text-sm font-medium ${transition.colors} bg-slate-800 ${text.primary} hover:bg-slate-700`;
 
 // The Workspace page answers exactly one question: "What should I do
 // today?" — nothing else. No architecture, no memory, no execution logs,
@@ -75,14 +97,14 @@ export default async function WorkerWorkspacePage({
   // Demo-mode bypassed so a presenter driving the featured opportunity
   // through its Sales-Rep-owned stages doesn't need to switch to that
   // deal's actual owner first — this only affects which deals are
-  // *visible* in My Deals, never who can act on them (canAct, on
+  // *visible* in Current Work, never who can act on them (canAct, on
   // DealPanel below, never bypasses real ownership).
   const myDeals = workerInstance.id === "sales"
     ? allDeals.filter((deal) => deal.ownerUserId === currentUser.id || CompanyModeStore.isDemoModeEnabled())
     : [];
-  // The Enterprise Demo Experience's one featured opportunity — leads "My
-  // Deals" on its own, everything else collapses behind Expandable. See
-  // lib/enterprise/EnterpriseDemoEngine.ts.
+  // The Enterprise Demo Experience's one featured opportunity — leads
+  // Current Work on its own, everything else collapses behind Expandable.
+  // See lib/enterprise/EnterpriseDemoEngine.ts.
   const featuredDealId = EnterpriseDemoStore.getFeaturedDealId();
   const featuredDeal = featuredDealId ? myDeals.find((deal) => deal.id === featuredDealId) : undefined;
   const otherDeals = featuredDeal ? myDeals.filter((deal) => deal.id !== featuredDealId) : myDeals;
@@ -92,9 +114,9 @@ export default async function WorkerWorkspacePage({
   const dealsAwaitingFinance =
     workerInstance.id === "finance" ? allDeals.filter((deal) => deal.stage === "pending-finance-review") : [];
 
-  // Sales Workspace home-screen summary — "what do I need to work on
-  // today," computed from data already derived above. Zero AI, orthogonal
-  // to Company Mode (read-only counts, not gated actions).
+  // Business Health summary — "what do I need to work on today," computed
+  // from data already derived above. Zero AI, orthogonal to Company Mode
+  // (read-only counts, not gated actions).
   const todayIso = new Date().toISOString().slice(0, 10);
   const urgentCustomerCount = todaysPriorities.filter(
     (row) => row.priority === "Critical" || row.priority === "High",
@@ -121,43 +143,82 @@ export default async function WorkerWorkspacePage({
 
   return (
     <>
-      <section>
-        <SectionTitle
-          title="Today's Work"
-          description={`What the ${worker.name} has already done this morning.`}
-        />
-        <div className="rounded-xl bg-slate-900 p-6">
+      <PageSection title="Today's Work" description={`What the ${worker.name} has already done this morning.`}>
+        <div className={`${radius.card} ${surface.card} p-6`}>
           <div className="space-y-3">
             {todaysActivity.map((item, index) => (
               <div key={index} className="flex gap-3">
-                <span className="mt-0.5 shrink-0 text-xs text-slate-500">{item.time}</span>
-                <p className="text-sm text-slate-200">{item.text}</p>
+                <span className={`mt-0.5 shrink-0 ${type.caption} ${text.muted}`}>{item.time}</span>
+                <p className={`${type.body} ${text.primary}`}>{item.text}</p>
               </div>
             ))}
           </div>
           {collaborationStep && (
             <div className="mt-4 border-t border-slate-800 pt-4">
-              <p className="text-xs font-medium tracking-wide text-blue-400 uppercase">Cross-Department Collaboration</p>
-              <p className="mt-2 text-sm text-slate-300">{collaborationStep.message}</p>
+              <p className={`${type.eyebrow} ${accent.primaryText}`}>Cross-Department Collaboration</p>
+              <p className={`mt-2 ${type.body} ${text.secondary}`}>{collaborationStep.message}</p>
             </div>
           )}
         </div>
-      </section>
+      </PageSection>
 
       {workerInstance.id === "sales" && (
         <>
-          <section>
-            <SectionTitle
-              title="My Deals"
-              description="Every step may optionally use AI. Review each result before continuing — AI assists, you decide."
-            />
+          {/* 1. Today's Priorities — the hero: who needs attention, why, and what to do. */}
+          <PageSection
+            title="Today's Priorities"
+            description="Who to work on today — ranked automatically from real account data."
+          >
+            {!hasExecuteAccess ? (
+              <ExecutionRestrictedNotice />
+            ) : todaysPriorities.length === 0 ? (
+              <EmptyState title="No customers yet." description="Import customers or connect CRM." />
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {todaysPriorities.slice(0, 3).map((row) => (
+                    <SalesPriorityCard
+                      key={row.customer.id}
+                      row={row}
+                      canExecute={hasExecuteAccess}
+                      currentUserId={currentUser.id}
+                      company={company}
+                    />
+                  ))}
+                </div>
+                {todaysPriorities.length > 3 && (
+                  <div className="mt-3">
+                    <Expandable summary={`View all ${todaysPriorities.length} priorities`}>
+                      <div className="space-y-3">
+                        {todaysPriorities.slice(3).map((row) => (
+                          <SalesPriorityCard
+                            key={row.customer.id}
+                            row={row}
+                            canExecute={hasExecuteAccess}
+                            currentUserId={currentUser.id}
+                            company={company}
+                          />
+                        ))}
+                      </div>
+                    </Expandable>
+                  </div>
+                )}
+              </>
+            )}
+          </PageSection>
+
+          {/* 2. Current Work — deals already in motion. */}
+          <PageSection
+            title="Current Work"
+            description="Every step may optionally use AI. Review each result before continuing — AI assists, you decide."
+          >
             {!hasExecuteAccess ? (
               <ExecutionRestrictedNotice />
             ) : (
               <div className="space-y-4">
                 <TodaysDecision company={company} variant="compact" minScreenIndex={1} />
                 {myDeals.length === 0 ? (
-                  <p className="text-sm text-slate-500">No active deals right now.</p>
+                  <EmptyState title="No active deals right now." />
                 ) : featuredDeal ? (
                   <>
                     <DealPanel company={company} deal={featuredDeal} currentUserId={currentUser.id} />
@@ -180,134 +241,76 @@ export default async function WorkerWorkspacePage({
                 )}
               </div>
             )}
-          </section>
+          </PageSection>
 
+          {/* 3. Approvals Waiting — read-only unless the current role (real
+              or "Presenting:") can act; WorkflowStepPanel's own canAct gate
+              is the single source of truth for that, untouched this sprint. */}
           {isSalesManager && (
-            <section id="manager-approval">
-              <SectionTitle
-                title="Manager Approval"
-                description="Sales orders from your team awaiting your decision."
-              />
-              {isPresentingAs("sales-manager") && (
-                <p className="mb-4 inline-block rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
-                  Presenting: Sales Manager View
-                </p>
-              )}
-              {dealsAwaitingManager.length === 0 ? (
-                <p className="text-sm text-slate-500">Nothing is awaiting your approval right now.</p>
-              ) : (
-                <div className="space-y-4">
-                  {dealsAwaitingManager.map((deal) => {
-                    const customer = company.customers.find((c) => c.id === deal.customerId);
-                    const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
-                    return (
-                      <WorkflowStepPanel
-                        key={deal.id}
-                        deal={deal}
-                        customerName={customer?.name ?? "Unknown customer"}
-                        ownerName={owner?.name ?? "Unknown"}
-                        canAct
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          )}
-
-          <section>
-            <SectionTitle
-              title="Today's Priorities"
-              description="What Sales should work on today — ranked automatically from real account data."
-            />
-            {todaysPriorities.length === 0 ? (
-              <div className="text-sm text-slate-500">
-                <p>No customers yet.</p>
-                <p>Import customers or connect CRM.</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {todaysPriorities.slice(0, 3).map((row) => (
-                    <PriorityRow
-                      key={row.customer.id}
-                      row={row}
-                      canExecute={hasExecuteAccess}
-                      currentUserId={currentUser.id}
-                      company={company}
-                    />
-                  ))}
-                </div>
-                {todaysPriorities.length > 3 && (
-                  <div className="mt-3">
-                    <Expandable summary={`View all ${todaysPriorities.length} priorities`}>
-                      <div className="space-y-3">
-                        {todaysPriorities.slice(3).map((row) => (
-                          <PriorityRow
-                            key={row.customer.id}
-                            row={row}
-                            canExecute={hasExecuteAccess}
-                            currentUserId={currentUser.id}
-                            company={company}
-                          />
-                        ))}
-                      </div>
-                    </Expandable>
+            <PageSection
+              title="Approvals Waiting"
+              description="Sales orders from your team awaiting your decision."
+              actions={
+                isPresentingAs("sales-manager") ? <StatusBadge label="Presenting: Sales Manager View" tone="info" /> : undefined
+              }
+            >
+              <div id="manager-approval">
+                {dealsAwaitingManager.length === 0 ? (
+                  <EmptyState title="Nothing is awaiting your approval right now." />
+                ) : (
+                  <div className="space-y-4">
+                    {dealsAwaitingManager.map((deal) => {
+                      const customer = company.customers.find((c) => c.id === deal.customerId);
+                      const owner = company.enterpriseUsers.find((u) => u.id === deal.ownerUserId);
+                      return (
+                        <WorkflowStepPanel
+                          key={deal.id}
+                          deal={deal}
+                          customerName={customer?.name ?? "Unknown customer"}
+                          ownerName={owner?.name ?? "Unknown"}
+                          canAct
+                        />
+                      );
+                    })}
                   </div>
                 )}
-              </>
-            )}
-          </section>
-
-          <section>
-            <SectionTitle
-              title="Today's Snapshot"
-              description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
-            />
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
-              <KpiCard title="Priority Customers" value={urgentCustomerCount.toString()} />
-              <KpiCard title="Customers Requiring Follow-up" value={customersNeedingFollowUp.toString()} />
-              <KpiCard title="Meetings Today" value={meetingsToday.toString()} />
-              <KpiCard title="Pending Quotations" value={pendingQuotations.toString()} />
-              <KpiCard title="Pending Sales Orders" value={pendingSalesOrders.toString()} />
-            </div>
-          </section>
-
-          <section>
-            <SectionTitle
-              title="Recent Activity"
-              description="A running record of calls, meetings, quotations, and decisions — the start of the Company Timeline."
-            />
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-slate-500">No activity recorded yet.</p>
-            ) : (
-              <div className="rounded-xl bg-slate-900 p-6">
-                <ActivityTimeline entries={recentActivity} />
               </div>
-            )}
-          </section>
+            </PageSection>
+          )}
+
+          {/* 4. Company Timeline — recent work across the company. */}
+          <CompanyTimelineSection entries={recentActivity} />
+
+          {/* 5. Supporting Information — the rep's own book at a glance. */}
+          <PageSection
+            title="Business Health"
+            description="What needs your attention right now — computed from your own accounts and deals, no AI involved."
+          >
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+              <StatCard label="Priority Customers" value={urgentCustomerCount.toString()} />
+              <StatCard label="Customers Requiring Follow-up" value={customersNeedingFollowUp.toString()} />
+              <StatCard label="Meetings Today" value={meetingsToday.toString()} />
+              <StatCard label="Pending Quotations" value={pendingQuotations.toString()} />
+              <StatCard label="Pending Sales Orders" value={pendingSalesOrders.toString()} />
+            </div>
+          </PageSection>
         </>
       )}
 
       {workerInstance.id === "finance" && (
         <>
-          <section>
-            <SectionTitle
-              title="Finance Review"
-              description="Approved sales orders awaiting finance sign-off before the order is confirmed."
-            />
+          <PageSection
+            title="Finance Review"
+            description="Approved sales orders awaiting finance sign-off before the order is confirmed."
+            actions={isPresentingAs("finance") ? <StatusBadge label="Presenting: Finance View" tone="info" /> : undefined}
+          >
             {!hasExecuteAccess ? (
               <ExecutionRestrictedNotice />
             ) : (
               <div className="space-y-4">
                 <TodaysDecision company={company} variant="compact" minScreenIndex={2} />
-                {isPresentingAs("finance") && (
-                  <p className="inline-block rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
-                    Presenting: Finance View
-                  </p>
-                )}
                 {dealsAwaitingFinance.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nothing is awaiting finance review right now.</p>
+                  <EmptyState title="Nothing is awaiting finance review right now." />
                 ) : (
                   dealsAwaitingFinance.map((deal) => {
                     const customer = company.customers.find((c) => c.id === deal.customerId);
@@ -325,59 +328,108 @@ export default async function WorkerWorkspacePage({
                 )}
               </div>
             )}
-          </section>
+          </PageSection>
 
-          <section>
-            <SectionTitle
-              title="Recent Activity"
-              description="A running record of calls, meetings, quotations, and decisions — the start of the Company Timeline."
-            />
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-slate-500">No activity recorded yet.</p>
-            ) : (
-              <div className="rounded-xl bg-slate-900 p-6">
-                <ActivityTimeline entries={recentActivity} />
-              </div>
-            )}
-          </section>
+          <CompanyTimelineSection entries={recentActivity} />
         </>
       )}
 
       {AI_ANALYSIS_PERSONA_IDS.includes(workerInstance.id) && (
         <section>
-          <SectionTitle
+          <PageSection
             title="Run AI"
             description={`Business actions ${worker.name} can take on this opportunity right now.`}
-          />
-          {hasExecuteAccess ? (
-            <div className="space-y-6">
-              <WorkerAiAnalysisBlock
-                personaId={workerInstance.id as PersonaId}
-                personaLabel={worker.name}
-                workerId={workerInstance.id}
-                documents={getAllDocuments()}
-                result={WorkerAnalysisResultStore.get(workerInstance.id as PersonaId)}
-              />
-              {workerInstance.id === "executive" && (
+          >
+            {hasExecuteAccess ? (
+              <div className="space-y-6">
                 <WorkerAiAnalysisBlock
-                  personaId="executive-assistant"
-                  personaLabel="Executive Assistant"
-                  workerId="executive"
+                  personaId={workerInstance.id as PersonaId}
+                  personaLabel={worker.name}
+                  workerId={workerInstance.id}
                   documents={getAllDocuments()}
-                  result={WorkerAnalysisResultStore.get("executive-assistant")}
+                  result={WorkerAnalysisResultStore.get(workerInstance.id as PersonaId)}
                 />
-              )}
-            </div>
-          ) : (
-            <ExecutionRestrictedNotice />
-          )}
+                {workerInstance.id === "executive" && (
+                  <WorkerAiAnalysisBlock
+                    personaId="executive-assistant"
+                    personaLabel="Executive Assistant"
+                    workerId="executive"
+                    documents={getAllDocuments()}
+                    result={WorkerAnalysisResultStore.get("executive-assistant")}
+                  />
+                )}
+              </div>
+            ) : (
+              <ExecutionRestrictedNotice />
+            )}
+          </PageSection>
         </section>
       )}
     </>
   );
 }
 
-function PriorityRow({
+interface TimelineEntryLike {
+  time: string;
+  title: string;
+  subtitle?: string;
+  description: string;
+  accent?: TimelineAccent;
+}
+
+// Shared by the Sales and Finance branches — both read the same Company
+// Timeline feed (lib/enterprise/CompanyTimeline.ts) rather than
+// maintaining separate ones. Reuses the shared TimelineCard primitive;
+// caps to 5 visible entries with the rest behind Expandable, the same
+// pattern already established on the Executive Dashboard.
+function CompanyTimelineSection({ entries }: { entries: TimelineEntryLike[] }) {
+  return (
+    <PageSection
+      title="Company Timeline"
+      description="A running record of calls, meetings, quotations, and decisions across the team."
+    >
+      {entries.length === 0 ? (
+        <EmptyState title="No activity recorded yet." />
+      ) : (
+        <div className={`${radius.card} ${surface.card} p-6`}>
+          {entries.slice(0, 5).map((entry, index, visible) => (
+            <TimelineCard
+              key={index}
+              title={entry.title}
+              subtitle={entry.subtitle}
+              time={entry.time}
+              description={entry.description}
+              accent={entry.accent}
+              isLast={index === visible.length - 1 && entries.length <= 5}
+            />
+          ))}
+          {entries.length > 5 && (
+            <Expandable summary={`View all ${entries.length} activity items`}>
+              {entries.slice(5).map((entry, index, rest) => (
+                <TimelineCard
+                  key={index}
+                  title={entry.title}
+                  subtitle={entry.subtitle}
+                  time={entry.time}
+                  description={entry.description}
+                  accent={entry.accent}
+                  isLast={index === rest.length - 1}
+                />
+              ))}
+            </Expandable>
+          )}
+        </div>
+      )}
+    </PageSection>
+  );
+}
+
+// Composes the shared PriorityCard primitive with this page's own
+// deal-lookup logic (unchanged from before this sprint) — Customer,
+// Priority Level, Reason, AI Recommendation, and Suggested Next Action are
+// all shown per docs/design-system, then Start Work / Continue Work / "in
+// progress with" exactly as before.
+function SalesPriorityCard({
   row,
   canExecute,
   currentUserId,
@@ -394,43 +446,35 @@ function PriorityRow({
     : undefined;
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-white">{row.customer.name}</p>
-          <p className="mt-1 text-xs text-slate-500">{row.followUpReason}</p>
-        </div>
-        <PriorityBadge priority={row.priority} />
-      </div>
-      <div className="mt-3 rounded-lg bg-slate-800/60 p-3">
-        <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">AI Recommendation</p>
-        <p className="mt-1 text-sm text-slate-300">{row.aiRecommendation}</p>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <TagBadge label={`Opportunity: ${row.estimatedOpportunity.toLocaleString()}`} />
-        <TagBadge label={`Last interaction: ${row.lastInteraction}`} />
-        <TagBadge label={row.suggestedAction} />
-        {canExecute && (
+    <PriorityCard
+      title={row.customer.name}
+      priorityLabel={row.priority}
+      priorityTone={PRIORITY_TONE[row.priority]}
+      reason={row.followUpReason}
+      recommendation={row.aiRecommendation}
+      details={
+        <>
+          <StatusBadge label={`Opportunity: ${row.estimatedOpportunity.toLocaleString()}`} tone="neutral" />
+          <StatusBadge label={`Last interaction: ${row.lastInteraction}`} tone="neutral" />
+          <StatusBadge label={`Next: ${row.suggestedAction}`} tone="neutral" />
+        </>
+      }
+      actions={
+        canExecute ? (
           <>
             {!existingDeal ? (
               <form action={startWork}>
                 <input type="hidden" name="customerId" value={row.customer.id} />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
-                >
+                <ActionButton type="submit" variant="secondary">
                   Start Work
-                </button>
+                </ActionButton>
               </form>
             ) : existingDeal.ownerUserId === currentUserId ? (
-              <a
-                href={`#deal-${existingDeal.id}`}
-                className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
-              >
+              <Link href={`#deal-${existingDeal.id}`} className={SECONDARY_LINK_CLASS}>
                 Continue Work →
-              </a>
+              </Link>
             ) : (
-              <TagBadge label={`In progress with ${ownerName ?? "someone"}`} />
+              <StatusBadge label={`In progress with ${ownerName ?? "someone"}`} tone="neutral" />
             )}
             <FollowUpExecutionDialog
               customerId={row.customer.id}
@@ -442,9 +486,9 @@ function PriorityRow({
               action={executeSalesFollowUp}
             />
           </>
-        )}
-      </div>
-    </div>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -493,14 +537,14 @@ function WorkerAiAnalysisBlock({
   const grouping = WORKER_ANALYSIS_GROUPING[personaId];
 
   return (
-    <div className="rounded-xl bg-slate-900 p-6">
-      <p className="text-sm font-semibold text-white">{personaLabel}</p>
+    <div className={`${radius.card} ${surface.card} p-6`}>
+      <p className={`${type.h3} ${text.primary}`}>{personaLabel}</p>
 
       <form action={analyzeDocumentAsWorker} className="mt-4 flex flex-wrap items-end gap-3">
         <input type="hidden" name="personaId" value={personaId} />
         <input type="hidden" name="workerId" value={workerId} />
         <div className="min-w-[220px] flex-1">
-          <label className="text-xs font-medium tracking-wide text-slate-500 uppercase">Document</label>
+          <label className={`${type.caption} ${text.muted}`}>Document</label>
           <select
             name="documentId"
             required
@@ -517,12 +561,9 @@ function WorkerAiAnalysisBlock({
             ))}
           </select>
         </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
-        >
+        <ActionButton type="submit" variant="primary">
           Analyze
-        </button>
+        </ActionButton>
       </form>
 
       {result ? (
@@ -539,7 +580,7 @@ function WorkerAiAnalysisBlock({
                 if (groupSections.length === 0) return null;
                 return (
                   <div key={group.title} className="rounded-lg border border-slate-800 p-4">
-                    <p className="text-sm font-semibold text-white">{group.title}</p>
+                    <p className={`${type.h3} ${text.primary}`}>{group.title}</p>
                     <div className="mt-3 space-y-3">
                       {groupSections.map((section) => (
                         <AnalysisSection key={section.key} section={section} />
@@ -553,7 +594,7 @@ function WorkerAiAnalysisBlock({
             result.sections.map((section) => <AnalysisSection key={section.key} section={section} />)
           )}
           <div className="border-t border-slate-800 pt-4">
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Knowledge Used</p>
+            <p className={`${type.eyebrow} ${text.muted}`}>Knowledge Used</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {result.knowledgeSourcesUsed.map((used) => (
                 <TagBadge
@@ -569,7 +610,7 @@ function WorkerAiAnalysisBlock({
           </div>
         </div>
       ) : (
-        <p className="mt-6 text-sm text-slate-500">No analysis run yet — select a document and click Analyze.</p>
+        <p className={`mt-6 ${type.body} ${text.muted}`}>No analysis run yet — select a document and click Analyze.</p>
       )}
     </div>
   );
@@ -578,7 +619,7 @@ function WorkerAiAnalysisBlock({
 function AnalysisSection({ section }: { section: { key: string; label: string; value: string | string[] } }) {
   return (
     <div>
-      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">{section.label}</p>
+      <p className={`${type.eyebrow} ${text.muted}`}>{section.label}</p>
       {Array.isArray(section.value) ? (
         <ul className="mt-1 space-y-1 text-sm text-slate-300">
           {section.value.map((item, index) => (
@@ -586,7 +627,7 @@ function AnalysisSection({ section }: { section: { key: string; label: string; v
           ))}
         </ul>
       ) : (
-        <p className="mt-1 text-sm text-slate-300">{section.value}</p>
+        <p className={`mt-1 ${type.body} ${text.secondary}`}>{section.value}</p>
       )}
     </div>
   );

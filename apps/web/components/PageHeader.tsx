@@ -7,8 +7,8 @@ export default function PageHeader({
 }) {
   return (
     <div className="mb-10">
-      <h1 className="text-4xl font-bold">{title}</h1>
-      {description && <p className="mt-2 max-w-3xl text-slate-400">{description}</p>}
+      <h1 className="text-4xl font-semibold tracking-tight text-slate-900">{title}</h1>
+      {description && <p className="mt-2 max-w-3xl text-slate-500">{description}</p>}
     </div>
   );
 }

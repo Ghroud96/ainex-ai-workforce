@@ -4,20 +4,20 @@ import TagBadge from "@/components/TagBadge";
 import type { Decision } from "@/lib/enterprise/DecisionBuilder";
 
 const STATUS_TONE: Record<Decision["status"], string> = {
-  Pending: "bg-slate-500/10 text-slate-400",
-  Approved: "bg-green-500/10 text-green-400",
-  Rejected: "bg-red-500/10 text-red-400",
+  Pending: "bg-slate-100 text-slate-600",
+  Approved: "bg-green-50 text-green-700",
+  Rejected: "bg-red-50 text-red-700",
 };
 
 export default function DecisionCard({ decision }: { decision: Decision }) {
   return (
-    <div className="flex flex-col rounded-xl bg-slate-900 p-6">
+    <div className="flex flex-col rounded-xl border border-slate-200/70 bg-white p-6">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-slate-100">{decision.text}</p>
+        <p className="text-sm font-medium text-slate-900">{decision.text}</p>
         <PriorityBadge priority={decision.priority} />
       </div>
 
-      <p className="mt-3 text-sm text-slate-400">{decision.businessImpact}</p>
+      <p className="mt-3 text-sm text-slate-500">{decision.businessImpact}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <TagBadge label={`Owner: ${decision.recommendedWorkerName}`} />
@@ -27,21 +27,21 @@ export default function DecisionCard({ decision }: { decision: Decision }) {
         </span>
       </div>
 
-      <details className="mt-4 text-sm text-slate-400">
-        <summary className="cursor-pointer font-medium text-slate-300">View Details</summary>
+      <details className="mt-4 text-sm text-slate-500">
+        <summary className="cursor-pointer font-medium text-slate-700">View Details</summary>
         <p className="mt-2">
-          <span className="font-medium text-slate-300">Risk: </span>
+          <span className="font-medium text-slate-700">Risk: </span>
           {decision.risk}
         </p>
       </details>
 
       {decision.status === "Pending" && (
-        <div className="mt-4 flex items-center gap-3 border-t border-slate-800 pt-4">
+        <div className="mt-4 flex items-center gap-3 border-t border-slate-200/70 pt-4">
           <form action={approveDecision}>
             <input type="hidden" name="id" value={decision.id} />
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
             >
               Approve
             </button>
@@ -50,7 +50,7 @@ export default function DecisionCard({ decision }: { decision: Decision }) {
             <input type="hidden" name="id" value={decision.id} />
             <button
               type="submit"
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700"
+              className="rounded-lg border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               Reject
             </button>

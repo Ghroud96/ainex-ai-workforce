@@ -3,6 +3,8 @@ import { ActionService } from "@/lib/action/ActionService";
 import type { Action, ActionResult } from "@/lib/action/ActionTypes";
 import type { ExecutionTask } from "@/lib/execution/ExecutionTypes";
 import { ExecutionEngine } from "@/lib/execution/ExecutionEngine";
+import type { WorkerScopedIntelligence } from "@/lib/knowledge-engine/RetrievalService";
+import { RetrievalService } from "@/lib/knowledge-engine/RetrievalService";
 import { PlanningEngine, type PlanningResult } from "@/lib/planning/PlanningEngine";
 import { RAGService, type RAGResponse } from "@/lib/rag/RAGService";
 import { ReasoningEngine } from "@/lib/reasoning/ReasoningEngine";
@@ -24,14 +26,22 @@ export interface WorkerRuntimeResult {
   actionResult?: ActionResult;
   workflowRun?: WorkflowRun;
   logs: RuntimeLogEntry[];
+  // Additive, Phase C10 (Capability 11) — the worker-scoped slice of
+  // persisted Company Intelligence, read alongside the existing RAG
+  // call. Optional and unread by every existing caller (the Intelligence
+  // page doesn't consume it yet — wiring it into UI is out of scope for
+  // this capability); this field is a true no-op for anything already
+  // depending on WorkerRuntimeResult.
+  companyIntelligence?: WorkerScopedIntelligence;
 }
 
 // The complete integrated pipeline: Runtime -> Worker Router -> Worker
 // Engine (via RAGService) -> Prompt -> Memory -> Retrieval -> RAG ->
 // Reasoning -> Planning -> Execution -> Action Layer -> Workflow Layer ->
 // n8n Provider -> Runtime Logger -> Worker Response (Phase C7-C9 adds the
-// Action/Workflow/Logger stages; everything before Execution is reused,
-// unmodified).
+// Action/Workflow/Logger stages; Phase C10 adds the additive
+// RetrievalService/Company Intelligence read alongside RAGService;
+// everything before Execution is otherwise reused, unmodified).
 export const WorkerRuntime = {
   async handle(request: WorkerRuntimeRequest): Promise<WorkerRuntimeResult | undefined> {
     const decision = WorkerRouter.route(request);
@@ -40,6 +50,7 @@ export const WorkerRuntime = {
 
     RuntimeLogger.log(workerId, "Knowledge", `Retrieved knowledge context for "${request.userMessage}".`);
     const rag = await RAGService.run({ worker: decision.worker, userMessage: request.userMessage });
+    const { structured: companyIntelligence } = await RetrievalService.forWorker(workerId, request.userMessage);
 
     RuntimeLogger.log(workerId, "Reasoning", "Evaluated retrieved knowledge for risks, opportunities, and anomalies.");
     const reasoning = ReasoningEngine.reasonAfterRag(decision.worker, rag);
@@ -97,6 +108,6 @@ export const WorkerRuntime = {
     RuntimeLogger.log(workerId, "Learning", "Conversation and knowledge usage recorded to Memory Engine.");
     RuntimeLogger.log(workerId, "Reporting", "Runtime pipeline completed.");
 
-    return { rag, reasoning, planning, execution, actionResult, workflowRun, logs: RuntimeLogger.getForWorker(workerId) };
+    return { rag, reasoning, planning, execution, actionResult, workflowRun, logs: RuntimeLogger.getForWorker(workerId), companyIntelligence };
   },
 };

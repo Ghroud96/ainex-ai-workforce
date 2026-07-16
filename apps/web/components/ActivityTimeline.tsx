@@ -7,8 +7,8 @@ export interface TimelineEntry {
 }
 
 const ACCENT_CIRCLE: Record<NonNullable<TimelineEntry["accent"]>, string> = {
-  default: "bg-blue-600/10 text-blue-400",
-  workflow: "bg-purple-600/10 text-purple-400",
+  default: "bg-blue-50 text-blue-700",
+  workflow: "bg-purple-50 text-purple-700",
 };
 
 // A real, connected, chronological timeline — used for both the Digital
@@ -26,15 +26,15 @@ export default function ActivityTimeline({ entries }: { entries: TimelineEntry[]
             >
               {index + 1}
             </span>
-            {index < entries.length - 1 && <span className="mt-1 w-px flex-1 bg-slate-800" />}
+            {index < entries.length - 1 && <span className="mt-1 w-px flex-1 bg-slate-200" />}
           </div>
           <div className="pb-5">
-            <p className="text-sm font-medium text-white">
+            <p className="text-sm font-medium text-slate-900">
               {entry.title}
               {entry.subtitle && <span className="font-normal text-slate-500"> · {entry.subtitle}</span>}
               <span className="font-normal text-slate-500"> · {entry.time}</span>
             </p>
-            <p className="mt-1 text-sm text-slate-300">{entry.description}</p>
+            <p className="mt-1 text-sm text-slate-600">{entry.description}</p>
           </div>
         </div>
       ))}

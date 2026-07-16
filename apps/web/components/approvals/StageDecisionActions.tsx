@@ -8,9 +8,9 @@ const initialState: ApprovalDecisionState = { error: null };
 type ButtonVariant = "primary" | "neutral" | "destructive";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-500",
-  neutral: "bg-slate-800 text-slate-200 hover:bg-slate-700",
-  destructive: "bg-slate-800 text-red-400 hover:bg-slate-700",
+  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  neutral: "border border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50",
+  destructive: "border border-red-200 bg-white text-red-700 hover:bg-red-50",
 };
 
 export interface StageDecisionButton<TOutcome extends string> {
@@ -50,7 +50,7 @@ export default function StageDecisionActions<TOutcome extends string>({
           </button>
         </form>
       ))}
-      {state.error && <p className="w-full text-xs text-amber-400">{state.error}</p>}
+      {state.error && <p className="w-full text-xs text-amber-700">{state.error}</p>}
     </div>
   );
 }

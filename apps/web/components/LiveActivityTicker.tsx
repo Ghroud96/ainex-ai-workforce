@@ -34,7 +34,7 @@ export default function LiveActivityTicker({ events }: { events: SimulatedEvent[
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
         </span>
-        <span className="text-xs font-medium tracking-wide text-green-400 uppercase">Live</span>
+        <span className="text-xs font-medium tracking-wide text-green-600 uppercase">Live</span>
       </div>
 
       <ActivityTimeline

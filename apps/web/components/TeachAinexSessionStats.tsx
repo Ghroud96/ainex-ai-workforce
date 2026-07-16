@@ -18,11 +18,11 @@ export default function TeachAinexSessionStats() {
   const learned = UploadedDocumentStore.getAll();
 
   return (
-    <div className="space-y-4 border-t border-slate-800 pt-4">
+    <div className="space-y-4 border-t border-slate-200/70 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Demo Session</p>
+        <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Demo Session</p>
         <form action={resetTeachAinexSession}>
-          <button type="submit" className="text-xs font-medium text-slate-500 hover:text-slate-300">
+          <button type="submit" className="text-xs font-medium text-slate-400 hover:text-slate-700">
             Reset Demo Session
           </button>
         </form>
@@ -36,13 +36,13 @@ export default function TeachAinexSessionStats() {
       </div>
 
       <div>
-        <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+        <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">
           Company Intelligence Learned This Session
         </p>
         <div className="mt-2 space-y-2">
           {learned.map((document) => (
-            <div key={document.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-800/60 px-3 py-2 text-sm">
-              <span className="text-slate-200">{document.name}</span>
+            <div key={document.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-slate-800">{document.name}</span>
               <TagBadge label={document.department} />
             </div>
           ))}

@@ -9,11 +9,11 @@ import { getTouchpointLabel } from "@/lib/sales/DealAiService";
 import { STAGE_CONFIG, type SalesDeal } from "@/lib/sales/SalesDealTypes";
 
 const STAGE_TONE: Record<string, string> = {
-  confirmed: "bg-green-500/10 text-green-400",
-  rejected: "bg-red-500/10 text-red-400",
-  "pending-manager-approval": "bg-amber-500/10 text-amber-400",
-  "pending-finance-review": "bg-amber-500/10 text-amber-400",
-  "revision-requested": "bg-amber-500/10 text-amber-400",
+  confirmed: "bg-green-50 text-green-700",
+  rejected: "bg-red-50 text-red-700",
+  "pending-manager-approval": "bg-amber-50 text-amber-700",
+  "pending-finance-review": "bg-amber-50 text-amber-700",
+  "revision-requested": "bg-amber-50 text-amber-700",
 };
 
 // The one reusable step-UI component for the whole connected workflow —
@@ -50,14 +50,14 @@ export default function WorkflowStepPanel({
   const result = stageConfig.touchpointId ? deal.aiResults[stageConfig.touchpointId] : undefined;
 
   return (
-    <div className="rounded-xl bg-slate-900 p-6">
+    <div className="rounded-xl border border-slate-200/70 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">{customerName}</p>
-          <p className="mt-1 text-xs text-slate-500">Deal value: {deal.estimatedValue.toLocaleString()} · Last interaction: {deal.lastInteraction}</p>
+          <p className="text-sm font-semibold text-slate-900">{customerName}</p>
+          <p className="mt-1 text-xs text-slate-400">Deal value: {deal.estimatedValue.toLocaleString()} · Last interaction: {deal.lastInteraction}</p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${STAGE_TONE[deal.stage] ?? "bg-slate-800 text-slate-300"}`}
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${STAGE_TONE[deal.stage] ?? "bg-slate-100 text-slate-600"}`}
         >
           {stageConfig.label}
         </span>
@@ -74,16 +74,16 @@ export default function WorkflowStepPanel({
       </div>
 
       {result && (
-        <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+        <div className="mt-4 space-y-3 border-t border-slate-200/70 pt-4">
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">
               {getTouchpointLabel(result.touchpointId)}
             </p>
-            <p className="mt-1 text-sm text-slate-300">{result.aiAnalysis}</p>
+            <p className="mt-1 text-sm text-slate-600">{result.aiAnalysis}</p>
           </div>
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Recommended Action</p>
-            <p className="mt-1 text-sm text-slate-300">{result.businessRecommendation}</p>
+            <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Recommended Action</p>
+            <p className="mt-1 text-sm text-slate-600">{result.businessRecommendation}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <TagBadge label={`Business Impact: ${result.estimatedBusinessImpact}`} />
@@ -92,7 +92,7 @@ export default function WorkflowStepPanel({
           </div>
           {result.knowledgeSourcesUsed.length > 0 && (
             <div>
-              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Company Intelligence Used</p>
+              <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Company Intelligence Used</p>
               <div className="mt-1 flex flex-wrap gap-2">
                 {result.knowledgeSourcesUsed.map((source) => (
                   <TagBadge key={source} label={source} />
@@ -101,21 +101,21 @@ export default function WorkflowStepPanel({
             </div>
           )}
           <div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Next Step</p>
-            <p className="mt-1 text-sm text-slate-300">{result.suggestedNextAction}</p>
+            <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Next Step</p>
+            <p className="mt-1 text-sm text-slate-600">{result.suggestedNextAction}</p>
           </div>
         </div>
       )}
 
       {canAct && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-800 pt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200/70 pt-4">
           {stageConfig.touchpointId && !result && (
             <form action={runDealAi}>
               <input type="hidden" name="dealId" value={deal.id} />
               <input type="hidden" name="touchpointId" value={stageConfig.touchpointId} />
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
                 Run AI
               </button>
@@ -127,7 +127,7 @@ export default function WorkflowStepPanel({
               <input type="hidden" name="dealId" value={deal.id} />
               <button
                 type="submit"
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700"
+                className="rounded-lg border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 {stageConfig.nextStepLabel ?? "Next Step"}
               </button>
@@ -163,7 +163,7 @@ export default function WorkflowStepPanel({
         showContinuePrompt &&
         CompanyModeStore.isDemoModeEnabled() &&
         (deal.stage === "pending-manager-approval" || deal.stage === "pending-finance-review") && (
-        <div className="mt-4 border-t border-slate-800 pt-4">
+        <div className="mt-4 border-t border-slate-200/70 pt-4">
           <form action={setPresentationRole}>
             <input type="hidden" name="role" value={deal.stage === "pending-manager-approval" ? "sales-manager" : "finance"} />
             <input
@@ -175,7 +175,7 @@ export default function WorkflowStepPanel({
                   : "/workforce/finance/workspace"
               }
             />
-            <button type="submit" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+            <button type="submit" className="text-sm font-medium text-blue-700 hover:text-blue-800">
               {deal.stage === "pending-manager-approval" ? "Continue to Manager Review →" : "Continue to Finance Review →"}
             </button>
           </form>

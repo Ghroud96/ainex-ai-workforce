@@ -23,12 +23,12 @@ export default function TodaysDecision({
 
   if (!snapshot) {
     return (
-      <div className="rounded-xl border border-blue-500/20 bg-slate-900 p-8 text-center">
-        <p className="text-lg font-semibold text-white">See how AINEX runs {company.profile.name} today</p>
+      <div className="rounded-xl border border-blue-200 bg-white p-8 text-center">
+        <p className="text-lg font-semibold text-slate-900">See how AINEX runs {company.profile.name} today</p>
         <form action={startEnterpriseDemo} className="mt-4">
           <button
             type="submit"
-            className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+            className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
           >
             ▶ Start Enterprise Demo
           </button>
@@ -39,11 +39,11 @@ export default function TodaysDecision({
 
   if (variant === "compact") {
     return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-        <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Today&apos;s Decision</p>
-        <p className="mt-1 text-sm font-semibold text-white">{snapshot.decision}</p>
+      <div className="rounded-lg border border-slate-200/70 bg-white p-4">
+        <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Today&apos;s Decision</p>
+        <p className="mt-1 text-sm font-semibold text-slate-900">{snapshot.decision}</p>
         {snapshot.aiRecommendation && (
-          <p className="mt-1 text-xs text-slate-400">AI recommends: {snapshot.aiRecommendation}</p>
+          <p className="mt-1 text-xs text-slate-500">AI recommends: {snapshot.aiRecommendation}</p>
         )}
         <div className="mt-3">
           <NextActionButton snapshot={snapshot} size="compact" />
@@ -53,20 +53,20 @@ export default function TodaysDecision({
   }
 
   return (
-    <div className="rounded-xl border border-blue-500/20 bg-slate-900 p-8">
-      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">Today&apos;s Decision</p>
-      <h2 className="mt-2 text-2xl font-bold text-white">{snapshot.decision}</h2>
-      <p className="mt-3 text-sm text-slate-300">{snapshot.whyItMatters}</p>
+    <div className="rounded-xl border border-blue-200 bg-white p-8">
+      <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Today&apos;s Decision</p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{snapshot.decision}</h2>
+      <p className="mt-3 text-sm text-slate-600">{snapshot.whyItMatters}</p>
       {snapshot.aiRecommendation && (
-        <div className="mt-4 rounded-lg bg-slate-800/60 p-4">
-          <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">AI Recommended</p>
-          <p className="mt-1 text-sm text-slate-200">{snapshot.aiRecommendation}</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-4">
+          <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">AI Recommended</p>
+          <p className="mt-1 text-sm text-slate-800">{snapshot.aiRecommendation}</p>
         </div>
       )}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800 pt-4">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200/70 pt-4">
         <NextActionButton snapshot={snapshot} size="full" />
         {!snapshot.complete && (
-          <span className="text-xs text-slate-500">~{Math.ceil(snapshot.remainingMinutes)} min remaining</span>
+          <span className="text-xs text-slate-400">~{Math.ceil(snapshot.remainingMinutes)} min remaining</span>
         )}
       </div>
     </div>
@@ -86,8 +86,8 @@ function NextActionButton({
 }) {
   const className =
     size === "compact"
-      ? "inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
-      : "rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500";
+      ? "inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+      : "rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700";
 
   if (snapshot.complete) {
     return (

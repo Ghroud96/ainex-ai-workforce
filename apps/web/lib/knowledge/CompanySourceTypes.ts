@@ -1,6 +1,6 @@
 import type { DigitalDocument, FileType } from "@/data/documents";
+import type { DocumentIntelligence } from "@/lib/knowledge-engine/KnowledgeExtractionTypes";
 import type { TeachAinexSessionSnapshot } from "@/lib/knowledge/TeachAinexSessionStore";
-import type { DocumentIntelligence } from "@/lib/services/knowledge/DocumentIntelligenceService";
 
 // The input shape for lib/knowledge/CompanySourceIngestion.ts's
 // ingestCompanySource() — deliberately source-agnostic. `sourceType` has

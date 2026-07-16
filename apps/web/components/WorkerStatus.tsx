@@ -1,9 +1,9 @@
 import type { WorkerStatusValue } from "@/data/workers";
 
 const toneByStatus: Record<WorkerStatusValue, string> = {
-  Available: "bg-green-500/10 text-green-400",
-  "In Development": "bg-amber-500/10 text-amber-400",
-  "Coming Soon": "bg-slate-500/10 text-slate-400",
+  Available: "bg-green-50 text-green-700",
+  "In Development": "bg-amber-50 text-amber-700",
+  "Coming Soon": "bg-slate-100 text-slate-600",
 };
 
 export default function WorkerStatus({ status }: { status: WorkerStatusValue }) {

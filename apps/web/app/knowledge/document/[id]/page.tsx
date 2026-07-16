@@ -17,7 +17,7 @@ import {
 import { getAllWorkers } from "@/data/workers";
 import { enrichDocument } from "@/lib/enterprise/BusinessInsights";
 import { getKnowledgeLifecycleIndex, KNOWLEDGE_LIFECYCLE_STAGES } from "@/lib/company-intelligence/KnowledgeLifecycle";
-import { summarizeDocument } from "@/lib/services/knowledge/DocumentIntelligenceService";
+import { extractKnowledge } from "@/lib/knowledge-engine/KnowledgeExtractionService";
 import { getKnowledgePipelineResult } from "@/lib/services/knowledge/knowledgeHubBridge";
 
 const PIPELINE_STATUS_TONE: Record<string, string> = {
@@ -70,7 +70,7 @@ export default async function DocumentDetailPage({
   const currentStageIndex = PROCESSING_STAGES.indexOf(document.processingStage);
   const pipelineResult = await getKnowledgePipelineResult(document.id);
   const { usageCount, businessImportance } = enrichDocument(document);
-  const intelligence = await summarizeDocument(document);
+  const intelligence = (await extractKnowledge(document)).legacy;
 
   return (
     <div className="max-w-5xl space-y-10">

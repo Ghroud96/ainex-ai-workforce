@@ -12,7 +12,7 @@ export default function Expandable({
 }) {
   return (
     <details className="group">
-      <summary className="cursor-pointer list-none text-sm font-medium text-blue-400 hover:text-blue-300">
+      <summary className="cursor-pointer list-none text-sm font-medium text-blue-700 hover:text-blue-800">
         <span className="inline-flex items-center gap-1">
           {summary}
           <svg

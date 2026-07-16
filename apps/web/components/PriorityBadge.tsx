@@ -1,10 +1,10 @@
 import type { PriorityLevel } from "@/lib/enterprise/BusinessInsights";
 
 const TONE: Record<PriorityLevel, string> = {
-  Critical: "bg-red-500/10 text-red-400",
-  High: "bg-amber-500/10 text-amber-400",
-  Medium: "bg-blue-500/10 text-blue-400",
-  Low: "bg-slate-500/10 text-slate-400",
+  Critical: "bg-red-50 text-red-700",
+  High: "bg-amber-50 text-amber-700",
+  Medium: "bg-blue-50 text-blue-700",
+  Low: "bg-slate-100 text-slate-600",
 };
 
 export default function PriorityBadge({ priority }: { priority: PriorityLevel }) {
